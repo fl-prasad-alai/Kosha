@@ -1,0 +1,222 @@
+1
+00:00:01,145 --> 00:00:03,629
+Every corner shop in Asia keeps a ledger.
+
+2
+00:00:03,679 --> 00:00:05,529
+Almost no lender can read it.
+
+3
+00:00:06,980 --> 00:00:08,086
+Meet Sunita Sharma.
+
+4
+00:00:08,136 --> 00:00:12,324
+She has run a kirana in Kothrud, Pune, for eleven years.
+
+5
+00:00:12,374 --> 00:00:15,793
+Three weeks before Diwali, she needs ₹80,000 for stock.
+
+6
+00:00:15,843 --> 00:00:17,334
+The bank says no.
+
+7
+00:00:17,384 --> 00:00:19,261
+No records, no credit score.
+
+8
+00:00:19,311 --> 00:00:21,573
+So she turns to the moneylender.
+
+9
+00:00:22,623 --> 00:00:24,477
+But Sunita does have records.
+
+10
+00:00:24,527 --> 00:00:27,523
+Every sale, every supplier, every rupee of credit,
+
+11
+00:00:27,573 --> 00:00:29,047
+handwritten in her khata.
+
+12
+00:00:29,097 --> 00:00:32,855
+From kiranas in India to sari-sari stores in the Philippines,
+
+13
+00:00:32,905 --> 00:00:36,282
+millions of shops are invisible for the same reason.
+
+14
+00:00:36,332 --> 00:00:38,186
+Checking them takes lenders days,
+
+15
+00:00:38,236 --> 00:00:40,852
+and one edited document can fool them.
+
+16
+00:00:43,302 --> 00:00:44,385
+This is Kosha.
+
+17
+00:00:44,435 --> 00:00:46,650
+In the Arthashastra, kosha means treasury.
+
+18
+00:00:46,700 --> 00:00:49,670
+Kosha turns the records a shop already keeps
+
+19
+00:00:49,720 --> 00:00:52,690
+into a credit passport any lender can trust.
+
+20
+00:00:54,840 --> 00:00:57,373
+Sunita photographs three pages of her khata.
+
+21
+00:00:57,423 --> 00:01:00,325
+Gemini reads every handwritten Hindi line, translates it,
+
+22
+00:01:00,375 --> 00:01:03,277
+and sorts it into sales, stock and credit,
+
+23
+00:01:03,327 --> 00:01:05,492
+with a box around every line.
+
+24
+00:01:06,642 --> 00:01:08,406
+Then Kosha checks her story.
+
+25
+00:01:08,456 --> 00:01:11,672
+Her wholesaler's bills match the ledger, to the rupee.
+
+26
+00:01:11,722 --> 00:01:13,849
+UPI shows over ₹8,000 a day.
+
+27
+00:01:13,899 --> 00:01:17,114
+And months of electricity bills, all paid on time,
+
+28
+00:01:17,164 --> 00:01:18,929
+prove the shop is real.
+
+29
+00:01:19,979 --> 00:01:21,668
+Gemini, grounded on Google data,
+
+30
+00:01:21,718 --> 00:01:25,148
+maps the colleges and bus stops that bring her customers.
+
+31
+00:01:25,198 --> 00:01:27,583
+Then she answers five questions in Hindi,
+
+32
+00:01:27,633 --> 00:01:30,367
+and every answer is checked against her documents.
+
+33
+00:01:31,517 --> 00:01:34,748
+Two minutes later, her credit passport is ready.
+
+34
+00:01:34,798 --> 00:01:38,029
+A score of 794, and an ₹80,000 offer,
+
+35
+00:01:38,079 --> 00:01:42,950
+with repayments that rise after Diwali and ease in the lean months.
+
+36
+00:01:43,000 --> 00:01:45,411
+Every reason links to its source.
+
+37
+00:01:45,461 --> 00:01:48,692
+And Kosha explains it to her, in Hindi.
+
+38
+00:01:49,542 --> 00:01:50,592
+नमस्ते सुनीता जी।
+Namaste, Sunita ji.
+
+39
+00:01:51,282 --> 00:01:53,102
+आपके अच्छे रिकॉर्ड्स के आधार पर,
+Based on your good records,
+
+40
+00:01:53,492 --> 00:01:56,882
+आपकी दुकान अस्सी हज़ार रुपये तक के ऋण के लिए योग्य है।
+your shop qualifies for a loan of up to ₹80,000.
+
+41
+00:01:58,592 --> 00:02:00,959
+Now meet Nena, in Quezon City.
+
+42
+00:02:01,009 --> 00:02:04,586
+One of her payment screenshots hides an extra ₱48,000.
+
+43
+00:02:04,636 --> 00:02:07,407
+Gemini spots digits in a different font,
+
+44
+00:02:07,457 --> 00:02:10,227
+and the next balance doesn't add up.
+
+45
+00:02:10,277 --> 00:02:12,242
+No offer, until it's checked.
+
+46
+00:02:13,492 --> 00:02:16,800
+Shops get fair credit, and a history they own.
+
+47
+00:02:16,850 --> 00:02:20,159
+Lenders reach customers they could never afford to check,
+
+48
+00:02:20,209 --> 00:02:23,144
+with less fraud, and decisions they can explain.
+
+49
+00:02:23,194 --> 00:02:24,637
+Wholesalers sell more stock.
+
+50
+00:02:24,687 --> 00:02:26,129
+It's free for shops.
+
+51
+00:02:26,179 --> 00:02:27,995
+Lenders pay per verified passport.
+
+52
+00:02:29,245 --> 00:02:32,343
+Built on Gemini, Vertex AI and Cloud Run.
+
+53
+00:02:32,393 --> 00:02:36,671
+Gemini reads the records, and clear, fixed rules make the decision.
+
+54
+00:02:36,721 --> 00:02:39,818
+Every corner shop has a treasury of trust.
+
+55
+00:02:39,868 --> 00:02:42,179
+Kosha lets the world see it.
