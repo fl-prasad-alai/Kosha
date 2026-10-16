@@ -1,0 +1,199 @@
+import { create } from 'zustand'
+import { createJSONStorage, persist } from 'zustand/middleware'
+import type { Assessment, CallMeta, DocKind, ExtractResultMap, InterviewAnswer, LocationResult, Profile, QuestionId } from '@shared/types'
+import * as api from '@/lib/api'
+import { loadSamples, sampleFiles, type SampleShop } from '@/lib/samples'
+
+export type Status = 'idle' | 'reading' | 'done' | 'error'
+
+export interface DocState<K extends DocKind = DocKind> {
+  files: File[]
+  urls: string[]
+  status: Status
+  error?: string
+  result?: ExtractResultMap[K]
+  meta?: CallMeta
+}
+
+export interface AnswerState {
+  status: Status
+  answer?: InterviewAnswer
+  error?: string
+}
+
+export const DOC_KINDS: DocKind[] = ['ledger', 'invoice', 'payments', 'electricity', 'shopfront']
+
+const emptyDoc = (): DocState => ({ files: [], urls: [], status: 'idle' })
+const emptyDocs = () => Object.fromEntries(DOC_KINDS.map((k) => [k, emptyDoc()])) as { [K in DocKind]: DocState<K> }
+
+export const EMPTY_PROFILE: Profile = { shopName: '', ownerName: '', address: '', shopType: 'Kirana (general store)', since: 2020, country: 'IN', language: 'hi', currency: 'INR' }
+
+interface KoshaState {
+  sampleId: string | null
+  sampleAnswers: Partial<Record<QuestionId, string>>
+  profile: Profile
+  docs: { [K in DocKind]: DocState<K> }
+  location: { status: Status; result?: LocationResult; error?: string; forAddress?: string }
+  answers: Partial<Record<QuestionId, AnswerState>>
+  assessment: Assessment | null
+  assessStatus: Status
+  assessError?: string
+
+  setProfile: (p: Partial<Profile>) => void
+  setFiles: (kind: DocKind, files: File[]) => void
+  removeFile: (kind: DocKind, index: number) => void
+  read: (kind: DocKind) => Promise<void>
+  scan: () => Promise<void>
+  answer: (id: QuestionId, input: { audio?: Blob; text?: string }) => Promise<void>
+  build: () => Promise<Assessment | null>
+  loadSample: (s: SampleShop) => Promise<void>
+  reset: () => void
+  /** After a page refresh: put sample photos back without re-reading them. */
+  restoreFiles: () => Promise<void>
+}
+
+const controllers = new Map<DocKind, AbortController>()
+
+async function thumbnailOf(file?: File): Promise<string | undefined> {
+  if (!file || !file.type.startsWith('image/')) return undefined
+  try {
+    const bmp = await createImageBitmap(file)
+    const w = 360
+    const h = Math.round((bmp.height / bmp.width) * w)
+    const c = document.createElement('canvas')
+    c.width = w
+    c.height = h
+    c.getContext('2d')?.drawImage(bmp, 0, 0, w, h)
+    return c.toDataURL('image/jpeg', 0.78)
+  } catch {
+    return undefined
+  }
+}
+
+export const useKosha = create<KoshaState>()(persist((set, get) => ({
+  sampleId: null,
+  sampleAnswers: {},
+  profile: EMPTY_PROFILE,
+  docs: emptyDocs(),
+  location: { status: 'idle' },
+  answers: {},
+  assessment: null,
+  assessStatus: 'idle',
+
+  setProfile: (p) => set((s) => ({ profile: { ...s.profile, ...p } })),
+
+  setFiles: (kind, files) => {
+    controllers.get(kind)?.abort()
+    const old = get().docs[kind]
+    old.urls.forEach((u) => URL.revokeObjectURL(u))
+    set((s) => ({ docs: { ...s.docs, [kind]: { files, urls: files.map((f) => URL.createObjectURL(f)), status: 'idle' } }, assessment: null }))
+  },
+
+  removeFile: (kind, index) => {
+    const d = get().docs[kind]
+    get().setFiles(kind, d.files.filter((_, i) => i !== index))
+  },
+
+  read: async (kind) => {
+    const d = get().docs[kind]
+    if (!d.files.length) return
+    controllers.get(kind)?.abort()
+    const ctl = new AbortController()
+    controllers.set(kind, ctl)
+    const files = d.files
+    set((s) => ({ docs: { ...s.docs, [kind]: { ...s.docs[kind], status: 'reading', error: undefined } } }))
+    try {
+      const out = await api.extractDocs(kind, files, get().profile, ctl.signal)
+      if (get().docs[kind].files !== files) return // files changed meanwhile
+      set((s) => ({ docs: { ...s.docs, [kind]: { ...s.docs[kind], status: 'done', result: out.result, meta: out.meta } } }))
+    } catch (e) {
+      if ((e as Error).name === 'AbortError') return
+      set((s) => ({ docs: { ...s.docs, [kind]: { ...s.docs[kind], status: 'error', error: (e as Error).message } } }))
+    }
+  },
+
+  scan: async () => {
+    const p = get().profile
+    if (!p.address.trim()) return
+    set({ location: { status: 'reading', forAddress: p.address } })
+    try {
+      const result = await api.scanLocation(p)
+      if (get().profile.address !== p.address) return
+      set({ location: { status: 'done', result, forAddress: p.address } })
+    } catch (e) {
+      set({ location: { status: 'error', error: (e as Error).message, forAddress: p.address } })
+    }
+  },
+
+  answer: async (id, input) => {
+    set((s) => ({ answers: { ...s.answers, [id]: { ...s.answers[id], status: 'reading', error: undefined } } }))
+    try {
+      const a = await api.answer(id, get().profile, input)
+      set((s) => ({ answers: { ...s.answers, [id]: { status: 'done', answer: a } }, assessment: null }))
+    } catch (e) {
+      set((s) => ({ answers: { ...s.answers, [id]: { ...s.answers[id], status: 'error', error: (e as Error).message } } }))
+    }
+  },
+
+  build: async () => {
+    const s = get()
+    set({ assessStatus: 'reading', assessError: undefined })
+    try {
+      const docs = Object.fromEntries(DOC_KINDS.filter((k) => s.docs[k].result).map((k) => [k, s.docs[k].result]))
+      const interview = Object.values(s.answers).map((a) => a?.answer).filter(Boolean)
+      const thumbnail = await thumbnailOf(s.docs.shopfront.files[0])
+      const a = await api.buildPassport({ profile: s.profile, docs, location: s.location.result, interview, thumbnail })
+      set({ assessment: a, assessStatus: 'done' })
+      return a
+    } catch (e) {
+      set({ assessStatus: 'error', assessError: (e as Error).message })
+      return null
+    }
+  },
+
+  loadSample: async (sample) => {
+    get().reset()
+    set({ sampleId: sample.id, profile: sample.profile, sampleAnswers: sample.interview })
+    const entries = await Promise.all(DOC_KINDS.map(async (k) => [k, await sampleFiles(sample.docs[k])] as const))
+    for (const [k, files] of entries) get().setFiles(k, files)
+    // Start reading everything at once; each step reveals its own result.
+    void get().scan()
+    for (const k of DOC_KINDS) void get().read(k)
+  },
+
+  reset: () => {
+    controllers.forEach((c) => c.abort())
+    controllers.clear()
+    Object.values(get().docs).forEach((d) => d.urls.forEach((u) => URL.revokeObjectURL(u)))
+    set({ sampleId: null, sampleAnswers: {}, profile: EMPTY_PROFILE, docs: emptyDocs(), location: { status: 'idle' }, answers: {}, assessment: null, assessStatus: 'idle', assessError: undefined })
+  },
+
+  restoreFiles: async () => {
+    const id = get().sampleId
+    if (!id) return
+    const sample = (await loadSamples()).find((x) => x.id === id)
+    if (!sample) return
+    for (const k of DOC_KINDS) {
+      const files = await sampleFiles(sample.docs[k])
+      set((s) => ({ docs: { ...s.docs, [k]: { ...s.docs[k], files, urls: files.map((f) => URL.createObjectURL(f)) } } }))
+    }
+    // Anything that was mid-read when the page reloaded starts again.
+    for (const k of DOC_KINDS) if (get().docs[k].status === 'idle' && !get().docs[k].result && get().docs[k].files.length) void get().read(k)
+    if (get().location.status === 'idle' && get().profile.address) void get().scan()
+  },
+}), {
+  name: 'kosha-session',
+  version: 1,
+  storage: createJSONStorage(() => sessionStorage),
+  partialize: (s) => ({
+    sampleId: s.sampleId,
+    sampleAnswers: s.sampleAnswers,
+    profile: s.profile,
+    docs: Object.fromEntries(DOC_KINDS.map((k) => [k, { files: [], urls: [], status: s.docs[k].status === 'done' ? 'done' : 'idle', result: s.docs[k].result, meta: s.docs[k].meta }])),
+    location: s.location.status === 'done' ? s.location : { status: 'idle' },
+    answers: Object.fromEntries(Object.entries(s.answers).filter(([, a]) => a?.status === 'done')),
+    assessment: s.assessment,
+    assessStatus: s.assessment ? 'done' : 'idle',
+  }) as unknown as KoshaState,
+  onRehydrateStorage: () => (state) => void state?.restoreFiles(),
+}))

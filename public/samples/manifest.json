@@ -1,0 +1,90 @@
+{
+ "shops": [
+  {
+   "id": "shopA",
+   "country": "IN",
+   "language": "hi",
+   "currency": "INR",
+   "shopName": "Sharma General Store",
+   "ownerName": "Sunita Sharma",
+   "address": "Shop 4, Karve Road, Kothrud, Pune, Maharashtra 411038",
+   "shopType": "Kirana (general store)",
+   "since": 2015,
+   "docs": {
+    "ledger": [
+     "shopA/ledger-1.jpg",
+     "shopA/ledger-2.jpg",
+     "shopA/ledger-3.jpg"
+    ],
+    "invoice": [
+     "shopA/invoice-1.jpg",
+     "shopA/invoice-2.jpg",
+     "shopA/invoice-3.jpg",
+     "shopA/invoice-4.jpg"
+    ],
+    "payments": [
+     "shopA/upi-statement.jpg"
+    ],
+    "electricity": [
+     "shopA/electricity-1.jpg",
+     "shopA/electricity-2.jpg",
+     "shopA/electricity-3.jpg"
+    ],
+    "shopfront": [
+     "shopA/shopfront.jpg"
+    ]
+   },
+   "interview": {
+    "years": "हमारी दुकान 2015 से चल रही है, यानी करीब 11 साल हो गए। कोथरूड में सब लोग हमें जानते हैं।",
+    "suppliers": "ज़्यादातर माल अग्रवाल ट्रेडर्स से आता है, हफ़्ते में दो बार — सोमवार और गुरुवार। हर शनिवार महालक्ष्मी डिस्ट्रीब्यूटर्स से साबुन, बिस्किट, चाय जैसा सामान लेते हैं।",
+    "busy": "शनिवार-रविवार को सबसे ज़्यादा भीड़ रहती है। गणपति और दिवाली के समय तो बिक्री बहुत बढ़ जाती है।",
+    "credit": "हाँ, पहचान वाले ग्राहकों को उधार देते हैं। अभी लोगों पर करीब साढ़े चार हज़ार रुपये बाकी हैं, ज़्यादातर महीने के अंदर लौटा देते हैं।",
+    "purpose": "दूध, दही और कोल्ड ड्रिंक के लिए एक दूसरा फ्रिज लेना है, करीब 45 हज़ार का, और दिवाली के लिए ज़्यादा माल भरना है। इससे महीने में करीब 6 हज़ार रुपये ज़्यादा मुनाफ़ा होगा।"
+   }
+  },
+  {
+   "id": "shopB",
+   "country": "PH",
+   "language": "tl",
+   "currency": "PHP",
+   "shopName": "Nena's Sari-Sari Store",
+   "ownerName": "Nena Dizon",
+   "address": "18 J.P. Rizal St., Project 4, Quezon City, Metro Manila 1109",
+   "shopType": "Sari-sari store",
+   "since": 2023,
+   "docs": {
+    "ledger": [
+     "shopB/ledger-1.jpg",
+     "shopB/ledger-2.jpg"
+    ],
+    "invoice": [
+     "shopB/invoice-1.jpg",
+     "shopB/invoice-2.jpg",
+     "shopB/invoice-3.jpg"
+    ],
+    "payments": [
+     "shopB/wallet-1.jpg",
+     "shopB/wallet-2.jpg",
+     "shopB/wallet-3.jpg",
+     "shopB/wallet-4.jpg",
+     "shopB/wallet-5.jpg"
+    ],
+    "electricity": [
+     "shopB/electricity-1.jpg",
+     "shopB/electricity-2.jpg",
+     "shopB/electricity-3.jpg"
+    ],
+    "shopfront": [
+     "shopB/shopfront.jpg"
+    ]
+   },
+   "interview": {
+    "years": "Nagsimula po ako noong 2023, kaya mga 3 years na po itong tindahan.",
+    "suppliers": "Sa Balintawak Wholesale po ako namimili, every Tuesday and Friday. Doon na po lahat — bigas, de-lata, noodles, kape, softdrinks.",
+    "busy": "Pinakamalakas po kapag weekend at tuwing sweldo, mga 15 at 30. Tapos sobrang lakas po pag Christmas season.",
+    "credit": "May mga suki po na nag-uutang, mga 1,700 pesos lahat-lahat ngayon. Nagbabayad naman po sila pag sweldo.",
+    "purpose": "Gusto ko pong bumili ng chest freezer para sa ice candy at frozen goods, mga 18,000 pesos, tapos dagdag stock para sa Pasko. Siguro mga 2,500 pesos po ang dagdag kita ko kada buwan."
+   }
+  }
+ ]
+}

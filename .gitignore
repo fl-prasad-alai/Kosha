@@ -1,0 +1,11 @@
+node_modules
+dist
+.env
+.env.local
+.cache
+*.log
+.DS_Store
+scripts/samples/out
+.data
+scripts/samples/build
+scripts/samples/kosha/build
