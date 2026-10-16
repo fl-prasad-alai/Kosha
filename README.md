@@ -2,6 +2,18 @@
 
 **The AI credit passport for every corner shop.**
 
+<div align="center">
+
+### ▶ See Kosha in action
+
+<a href="docs/media/kosha-demo.mp4"><img src="docs/readme/kosha-demo-preview.gif" alt="Kosha demo preview: Sunita's kirana, Gemini reading a handwritten Hindi ledger, the credit passport, a caught fraud and the closing line" width="720"></a>
+
+<sub>2:45 narrated walkthrough · <a href="docs/media/kosha-demo.mp4"><b>Watch the full video (1080p)</b></a> · <a href="docs/media/kosha-demo.srt">Subtitles</a></sub>
+
+</div>
+
+---
+
 Millions of small shops across Asia (kiranas in India, warungs in Indonesia, sari-sari stores in the Philippines) can't get formal working-capital loans. They have no audited accounts, so lenders can't see how good they are. Yet the shop already keeps everything a lender needs: a handwritten ledger, supplier bills, digital payment records and electricity bills.
 
 Kosha reads those records with Gemini, cross-checks them against each other, scores the shop with fixed rules that can be audited, and issues a **credit passport** any lender can verify with a link or a QR code.
