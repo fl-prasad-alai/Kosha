@@ -1,5 +1,5 @@
 import type {
-  Assessment, DocKind, ExtractResponse, ExtractResultMap, InterviewAnswer, LocationResult, PassportSummary, Profile, QuestionId,
+  Assessment, DecisionStatus, DocKind, Role, User, ExtractResponse, ExtractResultMap, InterviewAnswer, LocationResult, PassportSummary, Profile, QuestionId,
 } from '@shared/types'
 
 export class ApiError extends Error {
@@ -55,3 +55,11 @@ export async function tts(text: string): Promise<Blob> {
   if (!res.ok) throw new ApiError('Voice is unavailable right now.', res.status)
   return res.blob()
 }
+
+// ── accounts
+export const me = () => call<User | null>('/api/auth/me')
+export const login = (email: string, password: string) => call<User>('/api/auth/login', json({ email, password }))
+export const signup = (body: { role: Role; name: string; email: string; password: string; org: string }) => call<User>('/api/auth/signup', json(body))
+export const demoLogin = (role: Role) => call<User>('/api/auth/demo', json({ role }))
+export const logout = () => call<{ ok: true }>('/api/auth/logout', { method: 'POST' })
+export const decide = (id: string, status: DecisionStatus, note: string) => call<Assessment>(`/api/passports/${encodeURIComponent(id)}/decision`, json({ status, note }))

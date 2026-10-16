@@ -1,6 +1,8 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { Link, NavLink, useLocation } from 'react-router-dom'
-import { Moon, Sun } from 'lucide-react'
+import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
+import { AnimatePresence, motion } from 'motion/react'
+import { LogOut, Moon, Sun } from 'lucide-react'
+import { homeFor, useAuth } from '@/state/auth'
 import { Backdrop } from './Backdrop'
 import { cn } from '@/lib/utils'
 
@@ -42,7 +44,45 @@ function ThemeToggle() {
   )
 }
 
+function Account() {
+  const { user, ready, logout } = useAuth()
+  const [open, setOpen] = useState(false)
+  const navTo = useNavigate()
+  useEffect(() => {
+    if (!open) return
+    const close = () => setOpen(false)
+    addEventListener('click', close)
+    return () => removeEventListener('click', close)
+  }, [open])
+  if (!ready) return <span className="size-9" />
+  if (!user) return <Link to="/login" className="rounded-full bg-gold px-4 py-2 text-sm font-semibold text-[#1b1203]">Sign in</Link>
+  const initials = user.name.split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase()
+  return (
+    <div className="relative">
+      <button onClick={(e) => { e.stopPropagation(); setOpen(!open) }} className="glass flex items-center gap-2 rounded-full py-1 pl-1 pr-3 text-sm" aria-haspopup="menu" aria-expanded={open}>
+        <span className="grid size-7 place-items-center rounded-full bg-gradient-to-br from-gold-2 to-gold font-mono text-[11px] font-semibold text-[#1b1203]">{initials}</span>
+        <span className="hidden max-w-[12ch] truncate sm:inline">{user.name.split(' ')[0]}</span>
+      </button>
+      <AnimatePresence>
+        {open && (
+          <motion.div role="menu" initial={{ opacity: 0, y: -6, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.16 }} onClick={(e) => e.stopPropagation()} className="glass-strong absolute right-0 top-12 z-50 w-64 rounded-2xl p-2 shadow-2xl">
+            <div className="px-3 py-2">
+              <div className="truncate font-medium">{user.name}</div>
+              <div className="truncate text-xs text-ink-3">{user.org}</div>
+              <div className="mt-1.5 inline-block rounded-full bg-gold/12 px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-gold">{user.role === 'lender' ? 'Lender' : 'Shop owner'}{user.demo ? ' · demo' : ''}</div>
+            </div>
+            <Link to={homeFor(user)} onClick={() => setOpen(false)} className="block rounded-xl px-3 py-2 text-sm hover:bg-glass">{user.role === 'lender' ? 'Lender queue' : 'My passports'}</Link>
+            {user.role === 'business' && <Link to="/build" onClick={() => setOpen(false)} className="block rounded-xl px-3 py-2 text-sm hover:bg-glass sm:hidden">Build a passport</Link>}
+            <button role="menuitem" onClick={async () => { setOpen(false); await logout(); navTo('/') }} className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm text-vermilion hover:bg-vermilion/10"><LogOut className="size-4" /> Sign out</button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
 export function Shell({ children }: { children: ReactNode }) {
+  const user = useAuth((s) => s.user)
   const { pathname } = useLocation()
   useEffect(() => window.scrollTo(0, 0), [pathname])
   const nav = 'rounded-full px-3.5 py-1.5 text-sm text-ink-2 transition hover:text-ink'
@@ -53,10 +93,16 @@ export function Shell({ children }: { children: ReactNode }) {
         <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-3 sm:px-6">
           <Logo className="mr-auto" />
           <nav className="hidden items-center gap-1 sm:flex">
-            <NavLink to="/build" className={({ isActive }) => cn(nav, isActive && 'bg-glass text-ink')}>Build a passport</NavLink>
-            <NavLink to="/lender" className={({ isActive }) => cn(nav, isActive && 'bg-glass text-ink')}>For lenders</NavLink>
+            {user?.role === 'business' && (
+              <>
+                <NavLink to="/app" className={({ isActive }) => cn(nav, isActive && 'bg-glass text-ink')}>My passports</NavLink>
+                <NavLink to="/build" className={({ isActive }) => cn(nav, isActive && 'bg-glass text-ink')}>Build a passport</NavLink>
+              </>
+            )}
+            {user?.role === 'lender' && <NavLink to="/lender" className={({ isActive }) => cn(nav, isActive && 'bg-glass text-ink')}>Lender queue</NavLink>}
           </nav>
           <ThemeToggle />
+          <Account />
         </div>
       </header>
       <main>{children}</main>

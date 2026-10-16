@@ -35,6 +35,16 @@ Kosha reads those records with Gemini, cross-checks them against each other, sco
    - an explanation in the owner's language, read aloud with Gemini TTS
 7. **Gives lenders a queue** of passports and a shareable verification page.
 
+### Two kinds of account
+- **Shop owners** sign up, build passports, and see each lender's response on their dashboard (`/app`).
+- **Lenders** sign up, review the queue (`/lender`), and approve, ask for documents or decline, with a note the shop sees.
+- **Anyone** can open a passport's link or QR code to verify it; lender notes stay private.
+- One-click **demo accounts** on the sign-in page: *Sunita* (Sharma General Store) and *Arjun* (a lender). The demo password for `shop@demo.kosha` and `lender@demo.kosha` is `kosha-demo`.
+- Passwords are hashed with scrypt and sessions are signed, HTTP-only cookies. Users are stored in Firestore on Cloud Run.
+
+### Smooth on old phones and PCs
+Kosha checks the device (CPU cores, memory, data saver, reduced motion) and watches the real frame rate. On a slow device it lowers the 3D quality, freezes the animated background and drops blur effects, and it stops animating whenever the tab is hidden.
+
 ### Fair and auditable by design
 - Gemini **reads, translates, checks and explains**. The **score and limit come from deterministic rules** in [`server/score.ts`](server/score.ts), so the same evidence always gives the same result.
 - A failed integrity check **holds** the offer whatever the score.
@@ -77,7 +87,7 @@ npm install
 npm run dev                   # API on :8080, web on :5173
 ```
 
-Open http://localhost:5173 and choose a sample shop. The two sample shops are fictional; their documents are in [`public/samples`](public/samples). Their Gemini results are cached in [`cache/`](cache), so the demo also works offline.
+Open http://localhost:5173 and choose a sample shop (this signs you in to the demo shop account), or sign in as the demo lender at `/login`. The two sample shops are fictional; their documents are in [`public/samples`](public/samples). Their Gemini results are cached in [`cache/`](cache), so the demo also works offline.
 
 - **Sharma General Store** (Pune, India): Hindi ledger, UPI statement. Gets an offer.
 - **Nena's Sari-Sari Store** (Quezon City, Philippines): Taglish ledger. One wallet screenshot was edited to add ₱48,000, so the passport is **held**.

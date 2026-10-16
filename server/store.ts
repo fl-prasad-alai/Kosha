@@ -1,7 +1,7 @@
 // Passport storage. Firestore on Cloud Run (KOSHA_STORE=firestore), JSON files locally.
 import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import type { Assessment, PassportSummary } from '../shared/types.ts'
+import type { Assessment, Decision, PassportSummary, User } from '../shared/types.ts'
 
 // How a failed or flagged check reads in the lender queue: the problem, not the check's name.
 const PROBLEM: Record<string, string> = {
@@ -45,7 +45,18 @@ export async function get(id: string): Promise<Assessment | null> {
   return null
 }
 
-export async function list(): Promise<PassportSummary[]> {
+/** Passports made before accounts existed belong to the demo shop. */
+export const ownerOf = (a: Assessment) => a.ownerId ?? 'demo-shop'
+
+export async function decide(id: string, d: Decision): Promise<Assessment | null> {
+  const a = await get(id)
+  if (!a) return null
+  a.decisions = [...(a.decisions ?? []).filter((x) => x.lenderId !== d.lenderId), d]
+  await save(a)
+  return a
+}
+
+export async function list(user?: User): Promise<PassportSummary[]> {
   let all: Assessment[] = []
   if (useFirestore) {
     const snap = await (await firestore()).orderBy('createdAt', 'desc').limit(50).get()
@@ -62,6 +73,7 @@ export async function list(): Promise<PassportSummary[]> {
     }
     all.sort((a, b) => b.createdAt.localeCompare(a.createdAt))
   }
+  if (user?.role === 'business') all = all.filter((a) => ownerOf(a) === user.id)
   return all.map((a) => ({
     id: a.id,
     createdAt: a.createdAt,
@@ -79,5 +91,8 @@ export async function list(): Promise<PassportSummary[]> {
       .filter((c) => c.status === 'fail' || c.status === 'watch')
       .sort((x, y) => (x.status === 'fail' ? 0 : 1) - (y.status === 'fail' ? 0 : 1))
       .map((c) => PROBLEM[c.id] ?? c.title),
+    ownerId: ownerOf(a),
+    decision: [...(a.decisions ?? [])].sort((x, y) => y.at.localeCompare(x.at))[0] ?? null,
+    thumbnail: user?.role === 'business' ? a.thumbnail : undefined,
   }))
 }

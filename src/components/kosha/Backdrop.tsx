@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { FrameGuard, getTier, onTier, setTier } from '@/lib/perf'
 
 // Slow liquid-gold flow field (adapted from the Kavach / VANA backdrop), drawn behind everything.
 const VERT = 'attribute vec2 p; void main(){ gl_Position = vec4(p, 0.0, 1.0); }'
@@ -64,8 +65,13 @@ export function Backdrop() {
     const obs = new MutationObserver(() => (colors = readColors()))
     obs.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
 
-    const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches
-    const scale = 0.5 // render at half resolution; the field is soft anyway
+    // Low tier: draw one still frame and stop. High tier: animate at half resolution, ~30 fps,
+    // and drop to the still frame if the device cannot keep up.
+    let still = getTier() === 'low'
+    const scale = still ? 0.35 : 0.5 // the field is soft, so low resolution is invisible
+    let last = 0
+    const guard = new FrameGuard(() => setTier('low'))
+    const offTier = onTier((t) => { if (t === 'low') { still = true; cancelAnimationFrame(raf); draw(performance.now()) } })
     const resize = () => {
       canvas.width = Math.max(1, Math.floor(innerWidth * scale))
       canvas.height = Math.max(1, Math.floor(innerHeight * scale))
@@ -75,23 +81,28 @@ export function Backdrop() {
     addEventListener('resize', resize)
     let raf = 0
     const t0 = performance.now()
-    const draw = () => {
-      gl.uniform1f(u('t'), reduced ? 12 : (performance.now() - t0) / 1000)
+    const draw = (now: number) => {
+      if (!still && now - last < 30) { raf = requestAnimationFrame(draw); return } // cap at ~33 fps
+      if (last) guard.tick(now - last)
+      last = now
+      gl.uniform1f(u('t'), still ? 12 : (now - t0) / 1000)
       gl.uniform2f(u('res'), canvas.width, canvas.height)
       gl.uniform3fv(u('ca'), colors.a)
       gl.uniform3fv(u('cb'), colors.b)
       gl.uniform3fv(u('cc'), colors.c)
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
-      if (!reduced && !document.hidden) raf = requestAnimationFrame(draw)
+      if (!still && !document.hidden) raf = requestAnimationFrame(draw)
     }
-    draw()
+    draw(performance.now())
     const vis = () => {
       cancelAnimationFrame(raf)
-      if (!document.hidden) draw()
+      last = 0
+      if (!document.hidden) draw(performance.now())
     }
     document.addEventListener('visibilitychange', vis)
     return () => {
       cancelAnimationFrame(raf)
+      offTier()
       obs.disconnect()
       removeEventListener('resize', resize)
       document.removeEventListener('visibilitychange', vis)

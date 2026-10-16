@@ -1,13 +1,17 @@
-import { lazy, Suspense, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { Shell } from '@/components/kosha/Shell'
 import { EvidenceModal } from '@/components/kosha/Evidence'
 import { Intro } from '@/components/kosha/Intro'
 import Landing from '@/pages/Landing'
+import { RequireAuth } from '@/components/kosha/RequireAuth'
+import { useAuth } from '@/state/auth'
 
 const Build = lazy(() => import('@/pages/Build'))
 const PassportPage = lazy(() => import('@/pages/PassportPage'))
 const Lender = lazy(() => import('@/pages/Lender'))
+const Login = lazy(() => import('@/pages/Login'))
+const Home = lazy(() => import('@/pages/Home'))
 
 const INTRO_KEY = 'kosha-intro-seen'
 
@@ -24,6 +28,7 @@ function shouldPlayIntro() {
 
 export default function App() {
   const [intro, setIntro] = useState(shouldPlayIntro)
+  useEffect(() => void useAuth.getState().load(), [])
   const done = () => {
     try {
       sessionStorage.setItem(INTRO_KEY, '1')
@@ -38,9 +43,11 @@ export default function App() {
         {intro ? <div className="min-h-[100dvh]" /> : <Suspense fallback={<div className="min-h-[60vh]" />}>
           <Routes>
             <Route path="/" element={<Landing />} />
-            <Route path="/build" element={<Build />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/app" element={<RequireAuth role="business"><Home /></RequireAuth>} />
+            <Route path="/build" element={<RequireAuth role="business"><Build /></RequireAuth>} />
             <Route path="/passport/:id" element={<PassportPage />} />
-            <Route path="/lender" element={<Lender />} />
+            <Route path="/lender" element={<RequireAuth role="lender"><Lender /></RequireAuth>} />
             <Route path="*" element={<Landing />} />
           </Routes>
         </Suspense>}

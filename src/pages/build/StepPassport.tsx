@@ -48,7 +48,7 @@ export function StepPassport() {
           right={
             <div className="flex flex-wrap gap-2">
               <Link to={`/passport/${s.assessment.id}`} className="glass inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-sm">Open shareable page <ArrowUpRight className="size-4" /></Link>
-              <Link to="/lender" className="glass inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-sm">Lender view <ArrowUpRight className="size-4" /></Link>
+              <Link to="/app" className="glass inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-sm">My passports <ArrowUpRight className="size-4" /></Link>
             </div>
           }
         />

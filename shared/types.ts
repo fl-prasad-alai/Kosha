@@ -1,5 +1,28 @@
 // Types shared by the Kosha web app and the API.
 
+export type Role = 'business' | 'lender'
+
+export interface User {
+  id: string
+  role: Role
+  name: string
+  email: string
+  /** Shop name for a business, bank or lender name for a lender. */
+  org: string
+  createdAt: string
+  demo?: boolean
+}
+
+export type DecisionStatus = 'approved' | 'more_info' | 'declined'
+export interface Decision {
+  lenderId: string
+  lenderName: string
+  org: string
+  status: DecisionStatus
+  note: string
+  at: string
+}
+
 export type DocKind = 'ledger' | 'invoice' | 'payments' | 'electricity' | 'shopfront'
 
 /** Gemini box format: [ymin, xmin, ymax, xmax], each scaled to 0–1000. */
@@ -252,6 +275,8 @@ export interface Assessment {
   sourcesUsed: SourceNode[]
   geminiCalls: number
   thumbnail?: string
+  ownerId?: string
+  decisions?: Decision[]
 }
 
 export interface PassportSummary {
@@ -268,4 +293,7 @@ export interface PassportSummary {
   limit: number
   monthlySales: number
   flags: string[]
+  ownerId: string
+  decision: Decision | null
+  thumbnail?: string
 }

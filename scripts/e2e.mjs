@@ -58,6 +58,7 @@ process.on('unhandledRejection', async (e) => {
   process.exit(1)
 })
 
+await page.evaluateOnNewDocument(() => { try { sessionStorage.setItem('kosha-intro-seen', '1') } catch {} })
 await page.goto(BASE, { waitUntil: 'networkidle2' })
 await shot('01-landing', false)
 await page.waitForSelector('#samples button')
@@ -99,7 +100,9 @@ if (id) {
   await waitText('Do the sources agree?')
   await shot('09-public')
 }
+await page.evaluate(() => fetch('/api/auth/demo', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ role: 'lender' }) }))
 await page.goto(`${BASE}/lender`, { waitUntil: 'networkidle2' })
+await waitText('Passports waiting for a decision')
 await shot('10-lender', false)
 await page.setViewport({ width: 400, height: 860 })
 await page.goto(`${BASE}/`, { waitUntil: 'networkidle2' })

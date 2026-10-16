@@ -6,6 +6,9 @@ set -euo pipefail
 REGION="${REGION:-asia-southeast1}"
 SERVICE="${SERVICE:-kosha}"
 SA="kosha-run@${PROJECT_ID}.iam.gserviceaccount.com"
+# Signs session cookies. Keep the same value across deploys, or everyone is signed out.
+KOSHA_SECRET="${KOSHA_SECRET:-$(openssl rand -hex 32)}"
+echo "Session secret (save it and pass KOSHA_SECRET=... next time to keep sessions): ${KOSHA_SECRET}"
 
 gcloud config set project "$PROJECT_ID"
 gcloud services enable run.googleapis.com aiplatform.googleapis.com firestore.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com
@@ -25,6 +28,6 @@ gcloud run deploy "$SERVICE" \
   --service-account "$SA" \
   --allow-unauthenticated \
   --memory 1Gi --cpu 1 --timeout 300 --max-instances 3 --concurrency 40 \
-  --set-env-vars "^@^GOOGLE_GENAI_USE_VERTEXAI=true@GOOGLE_CLOUD_PROJECT=${PROJECT_ID}@GOOGLE_CLOUD_LOCATION=global@KOSHA_STORE=firestore@KOSHA_MAPS_GROUNDING=1@GEMINI_MODELS=gemini-3-flash-preview,gemini-2.5-flash@KOSHA_HOURLY_BUDGET=80"
+  --set-env-vars "^@^GOOGLE_GENAI_USE_VERTEXAI=true@GOOGLE_CLOUD_PROJECT=${PROJECT_ID}@GOOGLE_CLOUD_LOCATION=global@KOSHA_STORE=firestore@KOSHA_MAPS_GROUNDING=1@GEMINI_MODELS=gemini-3-flash-preview,gemini-2.5-flash@KOSHA_HOURLY_BUDGET=80@KOSHA_SECRET=${KOSHA_SECRET}"
 
 gcloud run services describe "$SERVICE" --region "$REGION" --format='value(status.url)'
