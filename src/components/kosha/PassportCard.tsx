@@ -32,8 +32,8 @@ function Ring({ score, held, live }: { score: number; held: boolean; live: boole
           cx="66" cy="66" r={r} fill="none" strokeWidth="9" strokeLinecap="round"
           stroke={held ? '#ff6a55' : 'url(#ringGold)'}
           strokeDasharray={C}
-          initial={{ strokeDashoffset: C }}
-          animate={{ strokeDashoffset: live ? C * (1 - frac) : C }}
+          initial={live ? { strokeDashoffset: C } : false}
+          animate={{ strokeDashoffset: C * (1 - frac) }}
           transition={{ duration: 1.6, ease: [0.22, 1, 0.36, 1], delay: 0.4 }}
         />
         <defs>

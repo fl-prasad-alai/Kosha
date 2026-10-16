@@ -3,6 +3,14 @@ import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import type { Assessment, PassportSummary } from '../shared/types.ts'
 
+// How a failed or flagged check reads in the lender queue: the problem, not the check's name.
+const PROBLEM: Record<string, string> = {
+  integrity: 'Edited payment record', ontime: 'Late bill payment', address: 'Address mismatch', invoice_ledger: 'Bills missing from ledger',
+  margin: 'Unusual margin', mix: 'Unusual cash / digital mix', power: 'Power use does not fit sales', place: 'Weak location',
+  located: 'Location not confirmed', discipline: 'Gaps in the ledger', credit: 'High customer credit', interview: 'Answers differ from documents',
+  shopfront: 'Signboard does not match',
+}
+
 const DIR = process.env.KOSHA_DATA_DIR ?? path.resolve('.data/passports')
 const useFirestore = process.env.KOSHA_STORE === 'firestore'
 
@@ -67,6 +75,9 @@ export async function list(): Promise<PassportSummary[]> {
     status: a.offer.status,
     limit: a.offer.limit,
     monthlySales: a.metrics.monthlySales,
-    flags: a.checks.filter((c) => c.status === 'fail' || c.status === 'watch').map((c) => c.title),
+    flags: a.checks
+      .filter((c) => c.status === 'fail' || c.status === 'watch')
+      .sort((x, y) => (x.status === 'fail' ? 0 : 1) - (y.status === 'fail' ? 0 : 1))
+      .map((c) => PROBLEM[c.id] ?? c.title),
   }))
 }
