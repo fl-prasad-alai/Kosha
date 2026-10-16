@@ -13,7 +13,7 @@ const INTRO_KEY = 'kosha-intro-seen'
 
 /** The opening sequence plays once per session, only when someone lands on the home page (or on /#intro). */
 function shouldPlayIntro() {
-  if (location.hash === '#intro') return true
+  if (location.hash === '#intro' || (import.meta.env.DEV && location.search.includes('introAt'))) return true
   if (location.pathname !== '/') return false
   try {
     return !sessionStorage.getItem(INTRO_KEY)
