@@ -48,15 +48,15 @@ Kosha reads those records with Gemini, cross-checks them against each other, sco
 | A pending or rejected lender | No shop data, only a "being verified" page |
 | Anyone with the link, and Kosha staff | A redacted record: shop name, owner's first name, area and city, shop type, score, band, offer status, issue date, sources count (and the offer amount only if the shop allows it) |
 
-- One policy file, [`shared/policy.ts`](shared/policy.ts), lists every permission. The API enforces it on every request and the web app uses the same file to hide routes and buttons. The server builds the public record field by field, so redacted fields are never sent.
+- One policy file, [`shared/policy.ts`](shared/policy.ts), lists every permission, and [`firestore.rules`](firestore.rules) enforces the same rules in Firestore on every read and write. The web app uses the policy file to hide routes and buttons. The public record is a separate Firestore document built field by field, so redacted fields are never readable; its score, band, status and seal must match the passport.
 - One-click **demo accounts** on the sign-in page: *Sunita* (Sharma General Store), *Arjun* (Pune Merchants Co-operative Bank, a verified lender) and a subtle *Admin* button (*Meera Iyer*, Kosha Operations). The password for `shop@demo.kosha`, `lender@demo.kosha` and `admin@demo.kosha` is `kosha-demo`.
-- Security: passwords are hashed with scrypt. The HTTP-only cookie holds only a random session id; sessions live on the server (Firestore on Cloud Run, `.data/sessions.json` locally), last 7 days, and role and verification are read fresh on every request. *Sign out on all devices* ends every session. State-changing requests from another site are refused, and five wrong passwords lock an email for 15 minutes. Sign-ins, lender views, decisions, consent changes and verifications go to an append-only audit log.
+- Security: accounts use Firebase Authentication (passwords are never stored by Kosha, and repeated wrong passwords are throttled). Role and lender verification live in Firestore and are read fresh on every request; nobody can make themselves verified or an admin. *Sign out on all devices* ends every earlier sign-in. After issue, a passport's score and evidence cannot be changed, only the shop's consent. Sign-ins, lender views, decisions, consent changes and verifications go to an append-only audit log that no one can edit or delete. [`scripts/rules-test.mjs`](scripts/rules-test.mjs) checks 55 allowed and refused cases against the Firestore emulator.
 
 ### Smooth on old phones and PCs
 Kosha checks the device (CPU cores, memory, data saver, reduced motion) and watches the real frame rate. On a slow device it lowers the 3D quality, freezes the animated background and drops blur effects, and it stops animating whenever the tab is hidden.
 
 ### Fair and auditable by design
-- Gemini **reads, translates, checks and explains**. The **score and limit come from deterministic rules** in [`server/score.ts`](server/score.ts), so the same evidence always gives the same result.
+- Gemini **reads, translates, checks and explains**. The **score and limit come from deterministic rules** in [`src/fb/score.ts`](src/fb/score.ts), so the same evidence always gives the same result.
 - A failed integrity check **holds** the offer whatever the score.
 - The limit uses a prudent margin (at most 25%) and keeps the instalment under 35% of monthly surplus.
 - The interview never judges accent, tone or confidence. It only compares facts with documents.
@@ -66,13 +66,14 @@ Kosha checks the device (CPU cores, memory, data saver, reduced motion) and watc
 
 ```mermaid
 flowchart LR
-  U["Shop owner / field agent<br/>(phone browser)"] --> W["React web app<br/>Vite · Tailwind · Motion"]
-  W -- "photos, audio" --> API["Node API on Cloud Run<br/>Express"]
-  API -- "vision, audio, structured JSON" --> G["Gemini on Vertex AI<br/>gemini-3-flash"]
-  API -- "grounding" --> GS["Google Search / Google Maps"]
-  API -- "voice" --> TTS["Gemini TTS"]
-  API --> R["Rules engine<br/>metrics · 12 cross-checks · score · limit"]
-  API --> F[("Firestore<br/>passports")]
+  U["Shop owner / field agent<br/>(phone browser)"] --> W["React web app on Firebase Hosting<br/>Vite · Tailwind · Motion"]
+  W -- "sign-in" --> A["Firebase Authentication"]
+  W -- "photos, audio" --> G["Gemini API (Google AI Studio)<br/>gemini-3-flash"]
+  G -- "grounding" --> GS["Google Search"]
+  W -- "voice" --> TTS["Gemini TTS"]
+  W --> R["Rules engine<br/>metrics · 12 cross-checks · score · limit"]
+  W --> F[("Cloud Firestore<br/>passports · consent · decisions · audit")]
+  F -. "security rules: owner · verified lender · admin · public" .- W
   L["Lender"] --> W
 ```
 
@@ -92,9 +93,12 @@ A full passport takes about 10 Gemini calls and costs a few US cents.
 ## Run it locally
 
 ```bash
-cp .env.example .env          # add a GEMINI_API_KEY from AI Studio
+cp .env.example .env                   # add a GEMINI_API_KEY from AI Studio
 npm install
-npm run dev                   # API on :8080, web on :5173
+printf 'VITE_FIREBASE_EMULATORS=1\nVITE_FIREBASE_PROJECT_ID=demo-kosha\n' > .env.development.local
+npm run emulators                      # Auth + Firestore emulators (needs Java)
+npm run seed:emulators                 # demo accounts and sample passports (another terminal)
+npm run dev                            # web on :5173
 ```
 
 Open http://localhost:5173 and choose a sample shop (this signs you in to the demo shop account), or sign in as the demo lender at `/login`. The two sample shops are fictional; their documents are in [`public/samples`](public/samples). Their Gemini results are cached in [`cache/`](cache), so the demo also works offline.
@@ -102,23 +106,38 @@ Open http://localhost:5173 and choose a sample shop (this signs you in to the de
 - **Sharma General Store** (Pune, India): Hindi ledger, UPI statement. Gets an offer.
 - **Nena's Sari-Sari Store** (Quezon City, Philippines): Taglish ledger. One wallet screenshot was edited to add ₱48,000, so the passport is **held**.
 
-End-to-end test in real Chrome: `node scripts/e2e.mjs 0` (or `1` for the second shop).
+End-to-end test in real Chrome: `node scripts/e2e.mjs 0` (or `1` for the second shop). Security rules: `node scripts/rules-test.mjs`.
 
-## Deploy to Cloud Run
+## Deploy to Firebase
 
-```bash
-PROJECT_ID=your-project ./deploy.sh
-```
+Kosha runs entirely on Firebase's free Spark plan: Hosting for the web app, Authentication for accounts and Cloud Firestore for data. Gemini is called with an AI Studio key restricted to the site's domain.
 
-This enables Cloud Run, Vertex AI and Firestore, creates a least-privilege service account, and deploys the single container (web app and API) to `asia-southeast1`.
+1. Create a Firebase project, add a **Web app**, enable **Authentication → Email/Password**, and create a **Cloud Firestore** database.
+2. Put the web app's config in `.env.production.local`:
+   ```
+   VITE_FIREBASE_API_KEY=...
+   VITE_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
+   VITE_FIREBASE_PROJECT_ID=your-project
+   VITE_FIREBASE_APP_ID=...
+   VITE_GEMINI_API_KEY=...     # AI Studio key, restricted to your-project.web.app
+   ```
+3. Deploy the rules, indexes and site, then add the demo accounts and sample passports:
+   ```bash
+   npx firebase login
+   npx firebase use your-project
+   npm run deploy
+   node scripts/seed.mjs your-project    # uses gcloud application-default credentials
+   ```
 
 ## Project layout
 
 | Path | What |
 |---|---|
 | `src/` | React app: guided six-step flow, passport card, lender view |
-| `server/` | API: Gemini calls (`gemini.ts`, `extract.ts`, `location.ts`, `interview.ts`, `tts.ts`), rules (`score.ts`), passport assembly (`assess.ts`) |
-| `shared/` | Types and interview questions shared by both |
+| `src/fb/` | Firebase setup and Gemini calls (`gemini.ts`, `extract.ts`, `location.ts`, `interview.ts`, `tts.ts`), rules (`score.ts`), passport assembly (`assess.ts`) |
+| `src/lib/api.ts` | Every action the app takes: accounts, passports, consent, decisions, admin, audit |
+| `firestore.rules` | Who may read or change what |
+| `shared/` | Types, the permission policy and interview questions |
 | `public/samples/` | Sample shop documents (fictional) and their generator in `scripts/samples/kosha` |
 | `cache/` | Cached Gemini results for the sample shops |
 

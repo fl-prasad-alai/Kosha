@@ -1,0 +1,111 @@
+rules_version = '2';
+
+// Who may read or change what in Kosha. These rules are the enforcement point:
+// the web app only mirrors them (shared/policy.ts) to hide buttons and give clear messages.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function uid() { return request.auth.uid; }
+    function userDoc() { return /databases/$(database)/documents/users/$(request.auth.uid); }
+    function hasProfile() { return signedIn() && exists(userDoc()); }
+    function me() { return get(userDoc()).data; }
+    function isAdmin() { return hasProfile() && me().role == 'admin'; }
+    function isShop() { return hasProfile() && me().role == 'business'; }
+    function isVerifiedLender() { return hasProfile() && me().role == 'lender' && me().get('status', 'pending') == 'verified'; }
+    // Does the shop's consent cover the signed-in lender's organisation?
+    function covers(consent) { return consent.scope == 'all' || (consent.scope == 'selected' && me().orgId in consent.lenderIds); }
+    function passport(id) { return get(/databases/$(database)/documents/passports/$(id)).data; }
+    function changes(keys) { return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys); }
+
+    // ── accounts
+    match /users/{userId} {
+      allow read: if signedIn() && (userId == uid() || isAdmin());
+      // Anyone may open a shop account or a lender account. A new lender starts as pending:
+      // nobody can make themselves verified, an admin, or a demo account.
+      allow create: if signedIn() && userId == uid()
+        && request.resource.data.id == uid()
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.keys().hasOnly(['id', 'role', 'name', 'email', 'org', 'orgId', 'status', 'createdAt'])
+        && request.resource.data.name is string && request.resource.data.org is string
+        && (
+          (request.resource.data.role == 'business' && !('status' in request.resource.data) && !('orgId' in request.resource.data))
+          || (request.resource.data.role == 'lender' && request.resource.data.status == 'pending' && request.resource.data.orgId is string)
+        );
+      allow update: if signedIn() && (
+        // an account may only record "signed out on every device"
+        (userId == uid() && changes(['signedOutBefore']))
+        // Kosha staff verify or reject lender accounts (never the demo lender)
+        || (isAdmin() && resource.data.role == 'lender' && resource.data.get('demo', false) != true
+            && changes(['status', 'statusNote', 'verifiedAt']) && request.resource.data.status in ['verified', 'rejected'])
+      );
+      allow delete: if false;
+    }
+
+    // Verified lender organisations a shop can choose to share with.
+    match /orgs/{orgId} {
+      allow read: if signedIn();
+      allow create, update: if isAdmin() && request.resource.data.id == orgId;
+      allow delete: if false;
+    }
+
+    // ── passports: the owner, and verified lenders the shop shared with, read the full passport
+    match /passports/{id} {
+      allow read: if signedIn() && (resource.data.ownerId == uid() || (isVerifiedLender() && covers(resource.data.consent)));
+      allow create: if isShop()
+        && request.resource.data.id == id
+        && request.resource.data.ownerId == uid()
+        && request.resource.data.consent.scope in ['all', 'selected']
+        && !('decisions' in request.resource.data) && !('access' in request.resource.data);
+      // After issue, only the shop's consent can change; the score and evidence are fixed.
+      allow update: if signedIn() && resource.data.ownerId == uid()
+        && changes(['consent'])
+        && request.resource.data.consent.scope in ['all', 'selected', 'none'];
+      allow delete: if false;
+
+      // One decision per lender organisation. The shop sees all; a lender only its own.
+      match /decisions/{orgId} {
+        allow read: if signedIn() && (passport(id).ownerId == uid()
+          || (isVerifiedLender() && me().orgId == orgId && covers(passport(id).consent)));
+        allow create, update: if isVerifiedLender() && me().orgId == orgId && covers(passport(id).consent)
+          && request.resource.data.lenderId == uid() && request.resource.data.orgId == orgId
+          && request.resource.data.status in ['approved', 'more_info', 'declined'];
+        allow delete: if false;
+      }
+
+      // Every full view by a lender, shown to the shop.
+      match /access/{entry} {
+        allow read: if signedIn() && (passport(id).ownerId == uid() || resource.data.lenderId == uid());
+        allow create: if isVerifiedLender() && covers(passport(id).consent) && request.resource.data.lenderId == uid();
+        allow update, delete: if false;
+      }
+    }
+
+    // ── the redacted public record behind every QR code: anyone may read it.
+    // Only the owner writes it, and its score, band, status and seal must match the passport.
+    match /public/{id} {
+      allow read: if true;
+      allow create, update: if signedIn()
+        && request.resource.data.ownerId == uid()
+        && passport(id).ownerId == uid()
+        && request.resource.data.id == id
+        && request.resource.data.score == passport(id).score
+        && request.resource.data.band == passport(id).band
+        && request.resource.data.status == passport(id).offer.status
+        && request.resource.data.seal == passport(id).seal;
+      allow delete: if false;
+    }
+
+    // ── append-only audit log. Staff read all of it; a shop reads the entries about its own passports.
+    match /audit/{entryId} {
+      allow read: if isAdmin() || (signedIn() && resource.data.get('ownerId', '') == uid());
+      allow create: if request.resource.data.id == entryId
+        && (
+          (signedIn() && request.resource.data.actorId == uid()
+            && (!('ownerId' in request.resource.data) || passport(request.resource.data.passportId).ownerId == request.resource.data.ownerId))
+          || (request.resource.data.actorId == null && request.resource.data.type in ['login_failed', 'login_locked'])
+        );
+      allow update, delete: if false;
+    }
+  }
+}

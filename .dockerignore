@@ -1,9 +1,0 @@
-node_modules
-dist
-.env
-.env.*
-.cache
-.data
-.git
-scripts/samples/build
-*.log

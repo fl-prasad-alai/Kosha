@@ -1,6 +1,5 @@
 // Builds the passport: deterministic scoring first, then one Gemini call to explain it to the owner.
-import { randomBytes } from 'node:crypto'
-import type { Assessment, Check, Purpose, Reason, SourceNode } from '../shared/types.ts'
+import type { Assessment, Check, Purpose, Reason, SourceNode } from '@shared/types'
 import { callCount, generate } from './gemini.ts'
 import { annuity, computeChecks, computeMetrics, computeOffer, computePillars, money, scoreFrom, type Inputs } from './score.ts'
 
@@ -134,7 +133,7 @@ export async function assess(i: Inputs, thumbnail?: string): Promise<Assessment>
 
   const { dailyCash: _d, ledgerNetCredit: _l, flaggedTotal: _f, ...metrics } = m
   return {
-    id: `KSH-${i.profile.country || 'XX'}-${randomBytes(3).toString('hex').toUpperCase()}`,
+    id: `KSH-${i.profile.country || 'XX'}-${[...crypto.getRandomValues(new Uint8Array(3))].map((b) => b.toString(16).padStart(2, '0')).join('').toUpperCase()}`,
     createdAt: new Date().toISOString(),
     profile: i.profile,
     metrics,

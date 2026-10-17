@@ -1,10 +1,11 @@
 // Document reading: one Gemini vision call per document type, with a strict JSON schema.
 import type { Part } from '@google/genai'
-import type { DocKind, ExtractResultMap, Profile } from '../shared/types.ts'
+import type { DocKind, ExtractResultMap, Profile } from '@shared/types'
 import { generate, inline, type CallResult } from './gemini.ts'
 
 export interface UploadedFile {
-  buffer: Buffer
+  /** base64 */
+  data: string
   mimetype: string
   originalname: string
 }
@@ -197,7 +198,7 @@ export async function extract<K extends DocKind>(
   ]
   files.forEach((f, i) => {
     parts.push({ text: `File ${i}: ${f.originalname}` })
-    parts.push(inline(f.buffer, f.mimetype))
+    parts.push(inline(f.data, f.mimetype))
   })
   const res = await generate<ExtractResultMap[K]>({
     task: `extract.${kind}.v3`,
@@ -205,7 +206,6 @@ export async function extract<K extends DocKind>(
     parts,
     schema: SCHEMAS[kind],
     maxOutputTokens: kind === 'ledger' || kind === 'payments' ? 24576 : 8192,
-    models: process.env[`GEMINI_MODELS_${kind.toUpperCase()}`]?.split(',').map((m) => m.trim()).filter(Boolean),
   })
   return { ...res, data: normalise(kind, res.data, files.length) }
 }
