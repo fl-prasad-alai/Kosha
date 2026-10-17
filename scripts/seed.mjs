@@ -11,7 +11,10 @@ import { getFirestore } from 'firebase-admin/firestore'
 const projectId = process.argv[2] ?? process.env.GCLOUD_PROJECT
 if (!projectId) throw new Error('Usage: node scripts/seed.mjs <firebase-project-id>')
 const emulated = !!process.env.FIRESTORE_EMULATOR_HOST
-initializeApp(emulated ? { projectId } : { projectId, credential: applicationDefault() })
+// A short-lived OAuth token (e.g. from the Firebase CLI sign-in) also works: KOSHA_ACCESS_TOKEN=...
+const token = process.env.KOSHA_ACCESS_TOKEN
+const credential = token ? { getAccessToken: async () => ({ access_token: token, expires_in: 3000 }) } : applicationDefault()
+initializeApp(emulated ? { projectId } : { projectId, credential })
 const auth = getAuth()
 const db = getFirestore()
 
