@@ -110,6 +110,9 @@ End-to-end test in real Chrome: `node scripts/e2e.mjs 0` (or `1` for the second 
 
 ## Deploy to Firebase
 
+Live at **https://kosha-ai.web.app**.
+
+
 Kosha runs entirely on Firebase's free Spark plan: Hosting for the web app, Authentication for accounts and Cloud Firestore for data. Gemini is called with an AI Studio key restricted to the site's domain.
 
 1. Create a Firebase project, add a **Web app**, enable **Authentication → Email/Password**, and create a **Cloud Firestore** database.
@@ -125,6 +128,8 @@ Kosha runs entirely on Firebase's free Spark plan: Hosting for the web app, Auth
    ```bash
    npx firebase login
    npx firebase use your-project
+   npx firebase target:apply hosting app your-site-id        # e.g. kosha-ai → kosha-ai.web.app
+   npx firebase target:apply hosting original your-project   # the project's default site
    npm run deploy
    node scripts/seed.mjs your-project    # uses gcloud application-default credentials
    ```
