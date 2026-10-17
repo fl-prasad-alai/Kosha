@@ -1,7 +1,12 @@
 // Passport storage. Firestore on Cloud Run (KOSHA_STORE=firestore), JSON files locally.
+// Also decides which version of a passport each viewer gets: the server never sends a field
+// the viewer is not allowed to see.
 import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import type { Assessment, Decision, PassportSummary, User } from '../shared/types.ts'
+import type { AccessEntry, Assessment, Consent, Decision, PassportResponse, PassportSummary, PublicPassport, User } from '../shared/types.ts'
+import { areaOf, can, NO_CONSENT, orgOf, type PassportResource } from '../shared/policy.ts'
+import { serial } from './db.ts'
+import { sealOf } from './auth.ts'
 
 // How a failed or flagged check reads in the lender queue: the problem, not the check's name.
 const PROBLEM: Record<string, string> = {
@@ -47,13 +52,73 @@ export async function get(id: string): Promise<Assessment | null> {
 
 /** Passports made before accounts existed belong to the demo shop. */
 export const ownerOf = (a: Assessment) => a.ownerId ?? 'demo-shop'
+/** Passports issued before consent existed are shared with no one. */
+export const consentOf = (a: Assessment): Consent => a.consent ?? NO_CONSENT
+export const resourceOf = (a: Assessment): PassportResource => ({ ownerId: ownerOf(a), consent: consentOf(a) })
 
-export async function decide(id: string, d: Decision): Promise<Assessment | null> {
+/** Read, change and save one passport without another request writing in between. */
+const mutate = (id: string, fn: (a: Assessment) => void) => serial(async () => {
   const a = await get(id)
   if (!a) return null
-  a.decisions = [...(a.decisions ?? []).filter((x) => x.lenderId !== d.lenderId), d]
+  fn(a)
   await save(a)
   return a
+})
+
+/** One decision per lender organisation; a newer one from the same organisation replaces it. */
+export const decide = (id: string, d: Decision) =>
+  mutate(id, (a) => void (a.decisions = [...(a.decisions ?? []).filter((x) => (x.orgId ?? x.lenderId) !== (d.orgId ?? d.lenderId)), d]))
+
+export const setConsent = (id: string, c: Consent) => mutate(id, (a) => void (a.consent = c))
+
+// Re-opening the same passport within a few minutes (a refresh, a second tab) counts as one view.
+const VIEW_GAP = 5 * 60 * 1000
+/** Adds a lender's full view to the passport's access log. Returns false when it was a repeat. */
+export async function recordView(id: string, lender: User): Promise<boolean> {
+  let added = false
+  await mutate(id, (a) => {
+    const last = [...(a.access ?? [])].reverse().find((x) => x.lenderId === lender.id)
+    if (last && Date.now() - Date.parse(last.at) < VIEW_GAP) return
+    const e: AccessEntry = { lenderId: lender.id, org: lender.org, at: new Date().toISOString() }
+    a.access = [...(a.access ?? []), e]
+    added = true
+  })
+  return added
+}
+
+/** Only the organisation's own decisions; never another lender's notes. */
+const decisionsFor = (a: Assessment, u: User) => (a.decisions ?? []).filter((d) => (d.orgId ? d.orgId === orgOf(u) : d.lenderId === u.id))
+
+const seal = (a: Assessment) => sealOf({ id: a.id, score: a.score, band: a.band, status: a.offer.status, createdAt: a.createdAt })
+
+/** What anyone with the link may see. Built field by field, so nothing else can slip through. */
+export function toPublic(a: Assessment): PublicPassport {
+  const c = consentOf(a)
+  return {
+    redacted: true,
+    id: a.id,
+    createdAt: a.createdAt,
+    shopName: a.profile.shopName,
+    ownerFirstName: a.profile.ownerName.split(/\s+/)[0] ?? '',
+    area: areaOf(a.profile.address),
+    country: a.profile.country,
+    shopType: a.profile.shopType,
+    score: a.score,
+    band: a.band,
+    status: a.offer.status,
+    ...(c.publicShowsOffer && a.offer.status === 'offer' ? { limit: a.offer.limit } : {}),
+    currency: a.profile.currency,
+    sourcesCount: a.sourcesUsed.length,
+    seal: seal(a),
+  }
+}
+
+/** The owner sees everything; a lender the shop shared with sees the passport and its own decision; everyone else the public record. */
+export function viewFor(a: Assessment, user?: User): PassportResponse {
+  const r = resourceOf(a)
+  if (can(user, 'passport:read:own', r)) return { ...a, ownerId: r.ownerId, consent: r.consent!, access: a.access ?? [], decisions: a.decisions ?? [], seal: seal(a) }
+  if (can(user, 'passport:read:shared', r)) return { ...a, ownerId: r.ownerId, consent: undefined, access: undefined, decisions: decisionsFor(a, user!), seal: seal(a) }
+  return toPublic(a)
 }
 
 export async function list(user?: User): Promise<PassportSummary[]> {
@@ -73,7 +138,9 @@ export async function list(user?: User): Promise<PassportSummary[]> {
     }
     all.sort((a, b) => b.createdAt.localeCompare(a.createdAt))
   }
-  if (user?.role === 'business') all = all.filter((a) => ownerOf(a) === user.id)
+  // Shops see their own passports; verified lenders only what shops shared with their organisation.
+  const owner = user?.role === 'business'
+  all = all.filter((a) => can(user, owner ? 'passport:read:own' : 'passport:read:shared', resourceOf(a)))
   return all.map((a) => ({
     id: a.id,
     createdAt: a.createdAt,
@@ -92,7 +159,8 @@ export async function list(user?: User): Promise<PassportSummary[]> {
       .sort((x, y) => (x.status === 'fail' ? 0 : 1) - (y.status === 'fail' ? 0 : 1))
       .map((c) => PROBLEM[c.id] ?? c.title),
     ownerId: ownerOf(a),
-    decision: [...(a.decisions ?? [])].sort((x, y) => y.at.localeCompare(x.at))[0] ?? null,
-    thumbnail: user?.role === 'business' ? a.thumbnail : undefined,
+    decision: [...(owner ? a.decisions ?? [] : decisionsFor(a, user!))].sort((x, y) => y.at.localeCompare(x.at))[0] ?? null,
+    thumbnail: owner ? a.thumbnail : undefined,
+    ...(owner ? { consent: consentOf(a), views: a.access?.length ?? 0 } : {}),
   }))
 }

@@ -2,13 +2,14 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion } from 'motion/react'
 import { ArrowRight, ArrowUpRight, BadgeCheck, Clock, FileQuestion, Plus, ScrollText, XCircle } from 'lucide-react'
-import type { Decision, PassportSummary } from '@shared/types'
+import type { Assessment, Decision, PassportSummary } from '@shared/types'
 import { listPassports } from '@/lib/api'
 import { money } from '@/lib/format'
 import { useAuth } from '@/state/auth'
 import { useKosha } from '@/state/kosha'
 import { MagneticButton } from '@/components/unlumen-ui/magnetic-button'
 import { ErrorNote, Panel, Reading, Stat } from '@/components/kosha/ui'
+import { ConsentManager } from '@/components/kosha/Consent'
 import { cn } from '@/lib/utils'
 
 const DECISION: Record<Decision['status'], { label: string; cls: string; Icon: typeof BadgeCheck }> = {
@@ -40,6 +41,8 @@ export default function Home() {
   const latest = rows?.[0]
   const offers = rows?.filter((r) => r.decision?.status === 'approved').length ?? 0
   const responses = rows?.filter((r) => r.decision).length ?? 0
+  // Consent changes apply on the server at once; mirror them in the list.
+  const saved = (a: Assessment) => setRows((rs) => rs?.map((x) => (x.id === a.id ? { ...x, consent: a.consent, views: a.access?.length ?? x.views } : x)) ?? rs)
   const startNew = () => {
     reset()
     nav('/build')
@@ -83,34 +86,37 @@ export default function Home() {
                 const d = r.decision ? DECISION[r.decision.status] : null
                 return (
                   <motion.li key={r.id} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06, duration: 0.45 }}>
-                    <Link to={`/passport/${r.id}`} className="glass group flex gap-4 rounded-3xl p-4 transition hover:border-gold/40 sm:p-5">
-                      {r.thumbnail ? <img src={r.thumbnail} alt="" className="hidden size-24 shrink-0 rounded-2xl object-cover sm:block" /> : null}
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <div className="truncate font-medium">{r.shopName}</div>
-                            <div className="font-mono text-[11px] text-ink-3">{r.id} · {new Date(r.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
-                          </div>
-                          <Ring score={r.score} held={r.status === 'hold'} />
-                        </div>
-                        <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
-                          {r.status === 'offer' && <span className="font-display text-xl text-gold">{money(r.limit, r.currency)}</span>}
-                          {r.status === 'hold' && <span className="rounded-full bg-vermilion/12 px-2.5 py-0.5 text-xs text-vermilion ring-1 ring-vermilion/30">On hold · {r.flags[0] ?? 'a record needs checking'}</span>}
-                          {r.status === 'decline' && <span className="text-ink-2">No offer yet</span>}
-                        </div>
-                        <div className="mt-3 border-t border-line pt-3">
-                          {d ? (
-                            <div className="flex items-start gap-2 text-sm">
-                              <span className={cn('inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs ring-1', d.cls)}><d.Icon className="size-3.5" />{d.label}</span>
-                              <span className="min-w-0 text-ink-2"><b className="font-medium text-ink">{r.decision!.org}</b>{r.decision!.note ? `: ${r.decision!.note}` : ''}</span>
+                    <div className="glass group rounded-3xl transition hover:border-gold/40">
+                      <Link to={`/passport/${r.id}`} className="flex gap-4 p-4 sm:p-5">
+                        {r.thumbnail ? <img src={r.thumbnail} alt="" className="hidden size-24 shrink-0 rounded-2xl object-cover sm:block" /> : null}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="truncate font-medium">{r.shopName}</div>
+                              <div className="font-mono text-[11px] text-ink-3">{r.id} · {new Date(r.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
                             </div>
-                          ) : (
-                            <div className="flex items-center gap-2 text-sm text-ink-3"><Clock className="size-4" /> Waiting for a lender to review</div>
-                          )}
+                            <Ring score={r.score} held={r.status === 'hold'} />
+                          </div>
+                          <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
+                            {r.status === 'offer' && <span className="font-display text-xl text-gold">{money(r.limit, r.currency)}</span>}
+                            {r.status === 'hold' && <span className="rounded-full bg-vermilion/12 px-2.5 py-0.5 text-xs text-vermilion ring-1 ring-vermilion/30">On hold · {r.flags[0] ?? 'a record needs checking'}</span>}
+                            {r.status === 'decline' && <span className="text-ink-2">No offer yet</span>}
+                          </div>
+                          <div className="mt-3 border-t border-line pt-3">
+                            {d ? (
+                              <div className="flex items-start gap-2 text-sm">
+                                <span className={cn('inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs ring-1', d.cls)}><d.Icon className="size-3.5" />{d.label}</span>
+                                <span className="min-w-0 text-ink-2"><b className="font-medium text-ink">{r.decision!.org}</b>{r.decision!.note ? `: ${r.decision!.note}` : ''}</span>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2 text-sm text-ink-3"><Clock className="size-4" /> {r.consent?.scope === 'none' ? 'Not shared, so no lender can review it' : 'Waiting for a lender to review'}</div>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                      <ArrowUpRight className="size-4 shrink-0 text-ink-3 transition group-hover:text-gold" />
-                    </Link>
+                        <ArrowUpRight className="size-4 shrink-0 text-ink-3 transition group-hover:text-gold" />
+                      </Link>
+                      <ConsentManager id={r.id} consent={r.consent} views={r.views} onSaved={saved} className="border-t border-line px-4 py-3 sm:px-5" />
+                    </div>
                   </motion.li>
                 )
               })}

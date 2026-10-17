@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { FrameGuard, getTier, onTier, setTier } from '@/lib/perf'
+import { onTheme } from '@/lib/theme'
 
 // Slow liquid-gold flow field (adapted from the Kavach / VANA backdrop), drawn behind everything.
 const VERT = 'attribute vec2 p; void main(){ gl_Position = vec4(p, 0.0, 1.0); }'
@@ -62,7 +63,10 @@ export function Backdrop() {
     gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0)
     const u = (n: string) => gl.getUniformLocation(prog, n)
     let colors = readColors()
-    const obs = new MutationObserver(() => (colors = readColors()))
+    // repaint on every theme change, including the still frame used on slow devices
+    const recolor = () => { colors = readColors(); if (still) draw(performance.now()) }
+    const offTheme = onTheme(recolor)
+    const obs = new MutationObserver(recolor)
     obs.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
 
     // Low tier: draw one still frame and stop. High tier: animate at half resolution, ~30 fps,
@@ -82,6 +86,8 @@ export function Backdrop() {
     let raf = 0
     const t0 = performance.now()
     const draw = (now: number) => {
+      // hidden behind the opening sequence: don't draw, and don't judge the device by those frames
+      if (document.documentElement.dataset.intro) { last = 0; guard.reset(); raf = requestAnimationFrame(draw); return }
       if (!still && now - last < 30) { raf = requestAnimationFrame(draw); return } // cap at ~33 fps
       if (last) guard.tick(now - last)
       last = now
@@ -103,6 +109,7 @@ export function Backdrop() {
     return () => {
       cancelAnimationFrame(raf)
       offTier()
+      offTheme()
       obs.disconnect()
       removeEventListener('resize', resize)
       document.removeEventListener('visibilitychange', vis)

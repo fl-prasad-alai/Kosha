@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 import { AnimatePresence, motion } from 'motion/react'
-import { ArrowRight, Eye, EyeOff, Landmark, Loader2, Store } from 'lucide-react'
+import { ArrowRight, Eye, EyeOff, Landmark, Loader2, ShieldCheck, Store } from 'lucide-react'
 import type { Role } from '@shared/types'
 import { AuthScene } from '@/components/kosha/AuthScene'
 import { fieldCls } from '@/components/kosha/ui'
@@ -144,7 +144,7 @@ export default function Login() {
           <span className="h-px flex-1 bg-line" /> or explore without an account <span className="h-px flex-1 bg-line" />
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
-          {([['business', Store, 'Shop owner demo', 'Sunita · Sharma General Store'], ['lender', Landmark, 'Lender demo', 'Arjun · Pune Merchants Bank']] as const).map(([r, Icon, title, sub]) => (
+          {([['business', Store, 'Shop owner demo', 'Sunita · Sharma General Store'], ['lender', Landmark, 'Lender demo', 'Arjun · Pune Merchants Co-op Bank']] as const).map(([r, Icon, title, sub]) => (
             <button key={r} type="button" onClick={() => demo(r)} disabled={!!busy} className="glass flex min-h-14 items-center gap-3 rounded-2xl px-4 py-3 text-left transition hover:border-gold/50 disabled:opacity-60">
               {busy === r ? <Loader2 className="size-5 animate-spin text-gold" /> : <Icon className="size-5 text-gold" />}
               <span className="min-w-0">
@@ -154,6 +154,9 @@ export default function Login() {
             </button>
           ))}
         </div>
+        <button type="button" onClick={() => demo('admin')} disabled={!!busy} className="mx-auto mt-4 flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs text-ink-3 transition hover:text-ink disabled:opacity-60">
+          {busy === 'admin' ? <Loader2 className="size-3.5 animate-spin" /> : <ShieldCheck className="size-3.5" />} Admin demo · Meera, Kosha Operations
+        </button>
       </motion.section>
     </div>
   )

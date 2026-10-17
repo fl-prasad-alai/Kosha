@@ -427,3 +427,7 @@ html[data-perf='low'] .backdrop-blur-sm {
 html[data-perf='low'] .glass { background: color-mix(in oklab, var(--k-bg) 82%, var(--k-ink) 6%); }
 html[data-perf='low'] .glass-strong { background: color-mix(in oklab, var(--k-bg) 90%, var(--k-ink) 6%); }
 html[data-perf='low'] body::after { animation: none; }
+
+/* theme switch: no transitions while the class flips, so nothing is left half-way */
+.theme-switching, .theme-switching *, .theme-switching *::before, .theme-switching *::after { transition: none !important; }
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: .35s; }

@@ -1,9 +1,11 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'motion/react'
-import { LogOut, Moon, Sun } from 'lucide-react'
+import { LogOut, MonitorSmartphone, Moon, Sun } from 'lucide-react'
+import { can } from '@shared/policy'
 import { homeFor, useAuth } from '@/state/auth'
 import { Backdrop } from './Backdrop'
+import { setTheme, useTheme } from '@/lib/theme'
 import { cn } from '@/lib/utils'
 
 export function Logo({ className }: { className?: string }) {
@@ -26,16 +28,10 @@ export function Logo({ className }: { className?: string }) {
 }
 
 function ThemeToggle() {
-  const [dark, setDark] = useState(() => document.documentElement.classList.contains('dark'))
-  useEffect(() => {
-    document.documentElement.classList.toggle('dark', dark)
-    try {
-      localStorage.setItem('kosha-theme', dark ? 'dark' : 'light')
-    } catch { /* storage blocked */ }
-  }, [dark])
+  const dark = useTheme() === 'dark'
   return (
     <button
-      onClick={() => setDark((d) => !d)}
+      onClick={() => setTheme(dark ? 'light' : 'dark')}
       className="glass grid size-9 place-items-center rounded-full text-ink-2 transition hover:text-ink focus-visible:outline-2 focus-visible:outline-gold"
       aria-label={dark ? 'Switch to light theme' : 'Switch to dark theme'}
     >
@@ -44,8 +40,10 @@ function ThemeToggle() {
   )
 }
 
+const ROLE = { business: 'Shop owner', lender: 'Lender', admin: 'Kosha admin' } as const
+
 function Account() {
-  const { user, ready, logout } = useAuth()
+  const { user, ready, logout, logoutAll } = useAuth()
   const [open, setOpen] = useState(false)
   const navTo = useNavigate()
   useEffect(() => {
@@ -69,11 +67,12 @@ function Account() {
             <div className="px-3 py-2">
               <div className="truncate font-medium">{user.name}</div>
               <div className="truncate text-xs text-ink-3">{user.org}</div>
-              <div className="mt-1.5 inline-block rounded-full bg-gold/12 px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-gold">{user.role === 'lender' ? 'Lender' : 'Shop owner'}{user.demo ? ' · demo' : ''}</div>
+              <div className="mt-1.5 inline-block rounded-full bg-gold/12 px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-gold">{ROLE[user.role]}{user.role === 'lender' && user.status !== 'verified' ? ` · ${user.status === 'rejected' ? 'not verified' : 'verifying'}` : ''}{user.demo ? ' · demo' : ''}</div>
             </div>
-            <Link to={homeFor(user)} onClick={() => setOpen(false)} className="block rounded-xl px-3 py-2 text-sm hover:bg-glass">{user.role === 'lender' ? 'Lender queue' : 'My passports'}</Link>
+            <Link to={homeFor(user)} onClick={() => setOpen(false)} className="block rounded-xl px-3 py-2 text-sm hover:bg-glass">{user.role === 'admin' ? 'Admin console' : user.role === 'lender' ? 'Lender queue' : 'My passports'}</Link>
             {user.role === 'business' && <Link to="/build" onClick={() => setOpen(false)} className="block rounded-xl px-3 py-2 text-sm hover:bg-glass sm:hidden">Build a passport</Link>}
             <button role="menuitem" onClick={async () => { setOpen(false); await logout(); navTo('/') }} className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm text-vermilion hover:bg-vermilion/10"><LogOut className="size-4" /> Sign out</button>
+            <button role="menuitem" onClick={async () => { setOpen(false); await logoutAll().catch(() => {}); navTo('/') }} className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm text-ink-2 hover:bg-glass hover:text-ink"><MonitorSmartphone className="size-4" /> Sign out on all devices</button>
           </motion.div>
         )}
       </AnimatePresence>
@@ -100,6 +99,7 @@ export function Shell({ children }: { children: ReactNode }) {
               </>
             )}
             {user?.role === 'lender' && <NavLink to="/lender" className={({ isActive }) => cn(nav, isActive && 'bg-glass text-ink')}>Lender queue</NavLink>}
+            {can(user, 'lender:verify') && <NavLink to="/admin" className={({ isActive }) => cn(nav, isActive && 'bg-glass text-ink')}>Admin</NavLink>}
           </nav>
           <ThemeToggle />
           <Account />

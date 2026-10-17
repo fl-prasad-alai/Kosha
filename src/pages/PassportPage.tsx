@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { AnimatePresence, motion } from 'motion/react'
-import { BadgeCheck, FileQuestion, Loader2, XCircle } from 'lucide-react'
-import type { Assessment, Decision, DecisionStatus } from '@shared/types'
+import { BadgeCheck, Eye, FileQuestion, Loader2, ShieldAlert, ShieldCheck, XCircle } from 'lucide-react'
+import type { AccessEntry, Assessment, Decision, DecisionStatus, PassportResponse } from '@shared/types'
+import { can, isPublic } from '@shared/policy'
 import { decide, getPassport } from '@/lib/api'
 import { useAuth } from '@/state/auth'
 import { useKosha } from '@/state/kosha'
 import { PassportResult } from '@/components/kosha/PassportResult'
+import { PublicPassport } from '@/components/kosha/PublicPassport'
+import { ConsentManager } from '@/components/kosha/Consent'
 import { ErrorNote, Panel, Reading, fieldCls } from '@/components/kosha/ui'
 import { money } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -61,6 +64,38 @@ function DecisionPanel({ a, onSaved }: { a: Assessment; onSaved: (a: Assessment)
   )
 }
 
+const when = (iso: string) => new Date(iso).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })
+
+/** The owner's view of who the passport is shared with, and every lender that opened it. */
+function Sharing({ a, onSaved }: { a: Assessment; onSaved: (a: Assessment) => void }) {
+  const log: AccessEntry[] = [...(a.access ?? [])].reverse()
+  return (
+    <div className="mb-6 grid gap-6 lg:grid-cols-2">
+      <Panel>
+        <div className="eyebrow">Who can see it</div>
+        <p className="mb-4 mt-1 text-sm text-ink-2">Lenders you allow see the full passport. Everyone else sees only the public record: score, band, status and area.</p>
+        <ConsentManager id={a.id} consent={a.consent} views={a.access?.length ?? 0} onSaved={onSaved} />
+      </Panel>
+      <Panel>
+        <div className="eyebrow">Who opened it</div>
+        {log.length ? (
+          <ul className="mt-3 max-h-56 space-y-2 overflow-auto pr-1">
+            {log.map((x, i) => (
+              <motion.li key={`${x.lenderId}-${x.at}`} initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.04 }} className="flex items-center gap-3 rounded-2xl border border-line px-3.5 py-2.5 text-sm">
+                <Eye className="size-4 shrink-0 text-gold" />
+                <span className="min-w-0 flex-1 truncate">Viewed by <b className="font-medium">{x.org}</b></span>
+                <span className="shrink-0 font-mono text-[11px] text-ink-3">{when(x.at)}</span>
+              </motion.li>
+            ))}
+          </ul>
+        ) : (
+          <p className="mt-3 text-sm text-ink-3">No lender has opened it yet. Every time one does, it shows up here.</p>
+        )}
+      </Panel>
+    </div>
+  )
+}
+
 function Received({ decisions }: { decisions: Decision[] }) {
   return (
     <Panel className="mb-6">
@@ -82,9 +117,11 @@ function Received({ decisions }: { decisions: Decision[] }) {
 
 export default function PassportPage() {
   const { id = '' } = useParams()
+  const [params] = useSearchParams()
+  const scanned = params.get('v')?.toUpperCase()
   const user = useAuth((s) => s.user)
   const local = useKosha((s) => (s.assessment?.id === id ? s.assessment : null))
-  const [a, setA] = useState<Assessment | null>(local)
+  const [a, setA] = useState<PassportResponse | null>(local)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -94,23 +131,39 @@ export default function PassportPage() {
     getPassport(id).then(setA).catch((e) => !local && setError((e as Error).message))
   }, [id, local, user?.id])
 
-  const isOwner = !!(a && user && a.ownerId === user.id)
+  // The server decides what this viewer gets; the page shows whichever version arrived.
+  const full = a && !isPublic(a) ? a : null
+  const res = full ? { ownerId: full.ownerId ?? '', consent: full.consent } : undefined
+  const isOwner = !!(full && can(user, 'passport:read:own', res))
+  const isLender = !!(full && user?.role === 'lender')
 
   return (
     <div className="mx-auto max-w-7xl px-4 pb-16 pt-8 sm:px-6">
       <div className="glass mb-6 flex flex-wrap items-center gap-3 rounded-2xl px-4 py-3 text-sm">
         <BadgeCheck className="size-5 text-jade" />
         <span className="min-w-0 flex-1">
-          {a ? <>Passport <b className="font-mono">{a.id}</b> issued {new Date(a.createdAt).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })} by Kosha. This page is the record a lender verifies.</> : 'Looking up the passport…'}
+          {a ? <>Passport <b className="font-mono">{a.id}</b> issued {new Date(a.createdAt).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })} by Kosha. {full ? 'This page is the record a lender verifies.' : 'Anyone with this link can check it is genuine.'}</> : 'Looking up the passport…'}
         </span>
         {user?.role === 'lender' && <Link to="/lender" className="text-ink-2 underline-offset-4 hover:text-ink hover:underline">Back to the queue</Link>}
         {isOwner && <Link to="/app" className="text-ink-2 underline-offset-4 hover:text-ink hover:underline">My passports</Link>}
       </div>
+      {a && scanned && a.seal && (
+        <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} className={cn('mb-6 flex items-start gap-3 rounded-2xl border px-4 py-3 text-sm', scanned === a.seal ? 'border-jade/40 bg-jade/10' : 'border-vermilion/50 bg-vermilion/10')}>
+          {scanned === a.seal ? <ShieldCheck className="mt-0.5 size-5 shrink-0 text-jade" /> : <ShieldAlert className="mt-0.5 size-5 shrink-0 text-vermilion" />}
+          <span>
+            {scanned === a.seal
+              ? <><b className="font-medium text-jade">Seal matches.</b> The QR code you scanned belongs to this passport, and the score and status below are Kosha's own record.</>
+              : <><b className="font-medium text-vermilion">Seal does not match.</b> The printout you scanned may have been changed. Trust only what this page shows, and ask the shop for a fresh passport.</>}
+          </span>
+        </motion.div>
+      )}
       {error && <ErrorNote error={error} />}
       {!a && !error && <Reading text="Fetching the passport record…" />}
-      {a && user?.role === 'lender' && <DecisionPanel a={a} onSaved={setA} />}
-      {a && isOwner && a.decisions?.length ? <Received decisions={a.decisions} /> : null}
-      {a && <PassportResult a={a} />}
+      {a && isPublic(a) && <PublicPassport p={a} user={user} />}
+      {full && isLender && <DecisionPanel a={full} onSaved={setA} />}
+      {full && isOwner && <Sharing a={full} onSaved={setA} />}
+      {full && isOwner && full.decisions?.length ? <Received decisions={full.decisions} /> : null}
+      {full && <PassportResult a={full} onSaved={setA} />}
     </div>
   )
 }

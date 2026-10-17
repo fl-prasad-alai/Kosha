@@ -35,12 +35,22 @@ Kosha reads those records with Gemini, cross-checks them against each other, sco
    - an explanation in the owner's language, read aloud with Gemini TTS
 7. **Gives lenders a queue** of passports and a shareable verification page.
 
-### Two kinds of account
+### Accounts, consent and who sees what
 - **Shop owners** sign up, build passports, and see each lender's response on their dashboard (`/app`).
-- **Lenders** sign up, review the queue (`/lender`), and approve, ask for documents or decline, with a note the shop sees.
-- **Anyone** can open a passport's link or QR code to verify it; lender notes stay private.
-- One-click **demo accounts** on the sign-in page: *Sunita* (Sharma General Store) and *Arjun* (a lender). The demo password for `shop@demo.kosha` and `lender@demo.kosha` is `kosha-demo`.
-- Passwords are hashed with scrypt and sessions are signed, HTTP-only cookies. Users are stored in Firestore on Cloud Run.
+- **Lenders** sign up as *pending*. They see no shop data until Kosha staff verify their organisation; then they review the queue (`/lender`) and approve, ask for documents or decline, with a note the shop sees.
+- **Kosha staff** (`/admin`) verify or reject lender organisations and read the audit log. They never see a shop's documents.
+- **Consent is taken before a passport is issued.** The shop chooses *all verified lenders* or *only lenders I choose*, and whether the public link shows the offer amount. It can change or withdraw this any time from its dashboard or the passport page, and it takes effect at once.
+
+| Who | Sees |
+|---|---|
+| The shop that owns the passport | Everything, every lender's decision, and an access log ("Viewed by Pune Merchants Co-op · 17 Oct") |
+| A verified lender the shop shared with | The full passport and only its own organisation's decision. Every view is logged for the shop |
+| A pending or rejected lender | No shop data, only a "being verified" page |
+| Anyone with the link, and Kosha staff | A redacted record: shop name, owner's first name, area and city, shop type, score, band, offer status, issue date, sources count (and the offer amount only if the shop allows it) |
+
+- One policy file, [`shared/policy.ts`](shared/policy.ts), lists every permission. The API enforces it on every request and the web app uses the same file to hide routes and buttons. The server builds the public record field by field, so redacted fields are never sent.
+- One-click **demo accounts** on the sign-in page: *Sunita* (Sharma General Store), *Arjun* (Pune Merchants Co-operative Bank, a verified lender) and a subtle *Admin* button (*Meera Iyer*, Kosha Operations). The password for `shop@demo.kosha`, `lender@demo.kosha` and `admin@demo.kosha` is `kosha-demo`.
+- Security: passwords are hashed with scrypt. The HTTP-only cookie holds only a random session id; sessions live on the server (Firestore on Cloud Run, `.data/sessions.json` locally), last 7 days, and role and verification are read fresh on every request. *Sign out on all devices* ends every session. State-changing requests from another site are refused, and five wrong passwords lock an email for 15 minutes. Sign-ins, lender views, decisions, consent changes and verifications go to an append-only audit log.
 
 ### Smooth on old phones and PCs
 Kosha checks the device (CPU cores, memory, data saver, reduced motion) and watches the real frame rate. On a slow device it lowers the 3D quality, freezes the animated background and drops blur effects, and it stops animating whenever the tab is hidden.

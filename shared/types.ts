@@ -1,6 +1,9 @@
 // Types shared by the Kosha web app and the API.
 
-export type Role = 'business' | 'lender'
+export type Role = 'business' | 'lender' | 'admin'
+
+/** A lender's organisation must be verified by Kosha before it sees any shop data. */
+export type LenderStatus = 'pending' | 'verified' | 'rejected'
 
 export interface User {
   id: string
@@ -9,13 +12,59 @@ export interface User {
   email: string
   /** Shop name for a business, bank or lender name for a lender. */
   org: string
+  /** Lenders only: the organisation a shop's consent names. Accounts at the same bank share it. */
+  orgId?: string
+  /** Lenders only. Missing means pending. */
+  status?: LenderStatus
+  /** Why a lender was rejected, shown to them. */
+  statusNote?: string
+  verifiedAt?: string
   createdAt: string
   demo?: boolean
+}
+
+/** A verified lender organisation a shop can choose to share with. */
+export interface LenderOrg { id: string; org: string }
+
+/** What the admin sees about a lender account (never a password hash). */
+export type LenderAccount = Pick<User, 'id' | 'name' | 'email' | 'org' | 'orgId' | 'status' | 'statusNote' | 'verifiedAt' | 'createdAt' | 'demo'>
+
+// ───────────────────────── consent and access
+
+export type ConsentScope = 'all' | 'selected' | 'none'
+/** Who the shop lets see its full passport. Taken when the passport is issued; the shop can change it any time. */
+export interface Consent {
+  scope: ConsentScope
+  /** Lender organisation ids, used when scope is 'selected'. */
+  lenderIds: string[]
+  /** Whether the public link shows the offer amount. */
+  publicShowsOffer: boolean
+  at: string
+  version: 1
+}
+export type ConsentInput = Pick<Consent, 'scope' | 'lenderIds' | 'publicShowsOffer'>
+
+/** One full view of a passport by a lender. */
+export interface AccessEntry { lenderId: string; org: string; at: string }
+
+export type AuditType = 'login' | 'login_failed' | 'login_locked' | 'logout_all' | 'signup' | 'passport_issued' | 'lender_view' | 'decision' | 'consent' | 'lender_verified' | 'lender_rejected'
+export interface AuditEntry {
+  id: string
+  at: string
+  type: AuditType
+  actorId: string | null
+  actorName: string
+  actorRole: Role | null
+  org?: string
+  passportId?: string
+  targetId?: string
+  detail: string
 }
 
 export type DecisionStatus = 'approved' | 'more_info' | 'declined'
 export interface Decision {
   lenderId: string
+  orgId?: string
   lenderName: string
   org: string
   status: DecisionStatus
@@ -277,7 +326,40 @@ export interface Assessment {
   thumbnail?: string
   ownerId?: string
   decisions?: Decision[]
+  /** Missing on passports issued before consent existed, which then count as not shared. */
+  consent?: Consent
+  /** Owner only: which lenders opened the full passport. */
+  access?: AccessEntry[]
+  /** Tamper-evident code for the public facts; sent with every view, never stored. */
+  seal?: string
 }
+
+/**
+ * What anyone with the link sees. The server builds this from the passport and never sends
+ * documents, evidence, ledger lines, interview answers, the street address or lender notes.
+ */
+export interface PublicPassport {
+  redacted: true
+  id: string
+  createdAt: string
+  shopName: string
+  ownerFirstName: string
+  /** Area and city only, never the street. */
+  area: string
+  country: string
+  shopType: string
+  score: number
+  band: string
+  status: Offer['status']
+  /** Only when the shop chose to show it. */
+  limit?: number
+  currency: string
+  sourcesCount: number
+  /** Tamper-evident code for the public facts above. */
+  seal: string
+}
+
+export type PassportResponse = Assessment | PublicPassport
 
 export interface PassportSummary {
   id: string
@@ -294,6 +376,11 @@ export interface PassportSummary {
   monthlySales: number
   flags: string[]
   ownerId: string
+  /** The latest decision for the owner; for a lender, only their own organisation's. */
   decision: Decision | null
   thumbnail?: string
+  /** Owner only. */
+  consent?: Consent
+  /** Owner only: number of lender views. */
+  views?: number
 }

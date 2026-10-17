@@ -4,8 +4,10 @@ import path from 'node:path'
 import { existsSync } from 'node:fs'
 import express, { type NextFunction, type Request, type Response } from 'express'
 import multer from 'multer'
-import type { DecisionStatus, DocKind, Profile, QuestionId } from '../shared/types.ts'
-import { attachUser, AuthError, clearSession, demoUser, login, requireUser, setSession, signup } from './auth.ts'
+import type { Consent, ConsentInput, DecisionStatus, DocKind, Profile, QuestionId, User } from '../shared/types.ts'
+import { can, orgOf } from '../shared/policy.ts'
+import { attachUser, AuthError, clearSession, demoUser, lenderAccounts, login, logoutAll, requireUser, sameOrigin, setLenderStatus, setSession, signup, verifiedOrgs } from './auth.ts'
+import { audit, readAudit } from './audit.ts'
 import { assess } from './assess.ts'
 import { extract } from './extract.ts'
 import { backend, configured, GeminiError, MODELS } from './gemini.ts'
@@ -17,6 +19,7 @@ import { speak } from './tts.ts'
 const app = express()
 app.disable('x-powered-by')
 app.set('trust proxy', true)
+app.use('/api', sameOrigin)
 app.use(express.json({ limit: '4mb' }))
 app.use((req, res, next) => void attachUser(req, res, next))
 
@@ -67,17 +70,21 @@ function authLimit(req: Request, res: Response, next: NextFunction) {
   attempts.set(ip, list)
   next()
 }
-app.post('/api/auth/signup', authLimit, wrap(async (req, res) => { const u = await signup(req.body ?? {}); setSession(req, res, u); res.status(201).json(u) }))
-app.post('/api/auth/login', authLimit, wrap(async (req, res) => { const u = await login(req.body ?? {}); setSession(req, res, u); res.json(u) }))
-app.post('/api/auth/demo', authLimit, wrap(async (req, res) => { const u = demoUser(String(req.body?.role)); setSession(req, res, u); res.json(u) }))
-app.post('/api/auth/logout', (_req, res) => { clearSession(res); res.json({ ok: true }) })
+app.post('/api/auth/signup', authLimit, wrap(async (req, res) => { const u = await signup(req.body ?? {}); await setSession(req, res, u); res.status(201).json(u) }))
+app.post('/api/auth/login', authLimit, wrap(async (req, res) => { const u = await login(req.body ?? {}); await setSession(req, res, u); res.json(u) }))
+app.post('/api/auth/demo', authLimit, wrap(async (req, res) => { const u = await demoUser(String(req.body?.role)); await setSession(req, res, u); res.json(u) }))
+app.post('/api/auth/logout', wrap(async (req, res) => { await clearSession(req, res); res.json({ ok: true }) }))
+app.post('/api/auth/logout-all', requireUser(), wrap(async (req, res) => res.json({ ok: true, ended: await logoutAll(req, res) })))
 app.get('/api/auth/me', (req, res) => res.json(req.user ?? null))
+
+// Verified lender organisations a shop can choose to share with.
+app.get('/api/lenders', requireUser(), wrap(async (_req, res) => res.json(await verifiedOrgs())))
 
 app.get('/api/health', (_req, res) => res.json({ ok: true, gemini: configured, backend, models: MODELS }))
 
 app.post(
   '/api/extract/:kind',
-  requireUser('business'),
+  requireUser('passport:create'),
   limit,
   upload.array('files', 8),
   wrap(async (req, res) => {
@@ -92,7 +99,7 @@ app.post(
 
 app.post(
   '/api/location',
-  requireUser('business'),
+  requireUser('passport:create'),
   limit,
   wrap(async (req, res) => {
     const p = req.body?.profile as Profile
@@ -103,7 +110,7 @@ app.post(
 
 app.post(
   '/api/interview/:id',
-  requireUser('business'),
+  requireUser('passport:create'),
   limit,
   upload.single('audio'),
   wrap(async (req, res) => {
@@ -112,44 +119,121 @@ app.post(
   }),
 )
 
+/** Checks the consent a shop sent. Selected lenders must be verified organisations. */
+async function parseConsent(raw: unknown, allowNone: boolean): Promise<Consent> {
+  const c = (raw ?? {}) as Partial<ConsentInput>
+  const scopes = allowNone ? ['all', 'selected', 'none'] : ['all', 'selected']
+  if (!c.scope || !scopes.includes(c.scope)) throw new AuthError('Choose who can see your full passport, and tick the consent box.')
+  const known = new Set((await verifiedOrgs()).map((o) => o.id))
+  const lenderIds = c.scope === 'selected' ? [...new Set((Array.isArray(c.lenderIds) ? c.lenderIds : []).map(String))].filter((id) => known.has(id)) : []
+  if (c.scope === 'selected' && !lenderIds.length) throw new AuthError('Choose at least one lender, or share with all verified lenders.')
+  return { scope: c.scope, lenderIds, publicShowsOffer: c.publicShowsOffer === true, at: new Date().toISOString(), version: 1 }
+}
+const describe = (c: Consent) => (c.scope === 'all' ? 'all verified lenders' : c.scope === 'selected' ? `${c.lenderIds.length} chosen lender${c.lenderIds.length === 1 ? '' : 's'}` : 'no lenders (withdrawn)') + (c.publicShowsOffer ? ', offer shown on the public link' : '')
+
 app.post(
   '/api/assess',
-  requireUser('business'),
+  requireUser('passport:create'),
   limit,
   wrap(async (req, res) => {
     const { profile, docs = {}, location, interview, thumbnail } = req.body ?? {}
     if (!profile?.shopName) return res.status(400).json({ error: 'Add the shop details first.' })
     if (!docs.ledger) return res.status(400).json({ error: 'Read at least the ledger pages before building the passport.' })
+    const consent = await parseConsent(req.body?.consent, false)
     const a = await assess({ profile, ...docs, location, interview }, typeof thumbnail === 'string' && thumbnail.length < 400_000 ? thumbnail : undefined)
     a.ownerId = req.user!.id
+    a.consent = consent
     await store.save(a)
-    res.json(a)
+    await audit(req.user!, 'passport_issued', { passportId: a.id, org: req.user!.org, detail: `Issued and shared with ${describe(consent)}` })
+    res.json(store.viewFor(a, req.user))
   }),
 )
 
-app.get('/api/passports', requireUser(), wrap(async (req, res) => res.json(await store.list(req.user))))
+app.get('/api/passports', requireUser(['passport:read:own', 'passport:read:shared']), wrap(async (req, res) => res.json(await store.list(req.user))))
 app.get(
   '/api/passports/:id',
   wrap(async (req, res) => {
     const a = await store.get(String(req.params.id))
     if (!a) return res.status(404).json({ error: 'No passport with that number.' })
-    // Anyone with the link can verify a passport; lender notes are only for the owner and lenders.
-    const canSeeDecisions = req.user && (req.user.role === 'lender' || store.ownerOf(a) === req.user.id)
-    res.json(canSeeDecisions ? { ...a, ownerId: store.ownerOf(a) } : { ...a, decisions: undefined, ownerId: undefined })
+    const view = store.viewFor(a, req.user)
+    // Every full view by a lender goes in the shop's access log.
+    if (req.user?.role === 'lender' && !('redacted' in view) && (await store.recordView(a.id, req.user))) {
+      await audit(req.user, 'lender_view', { passportId: a.id, org: req.user.org, detail: `Opened the full passport of ${a.profile.shopName}` })
+    }
+    res.json(view)
   }),
 )
+
+const owned = async (req: Request, res: Response) => {
+  const a = await store.get(String(req.params.id))
+  if (!a) return void res.status(404).json({ error: 'No passport with that number.' })
+  return a
+}
+app.put(
+  '/api/passports/:id/consent',
+  requireUser('passport:share'),
+  wrap(async (req, res) => {
+    const a = await owned(req, res)
+    if (!a) return
+    if (!can(req.user, 'passport:share', store.resourceOf(a))) return res.status(403).json({ error: 'Only the shop that owns this passport can change who sees it.' })
+    const c = await parseConsent(req.body, true)
+    const next = await store.setConsent(a.id, c)
+    await audit(req.user!, 'consent', { passportId: a.id, org: req.user!.org, detail: `Now shared with ${describe(c)}` })
+    res.json(store.viewFor(next!, req.user))
+  }),
+)
+
+/** A shop reads the audit trail of its own passport; staff read any. */
+app.get(
+  '/api/passports/:id/audit',
+  requireUser('audit:read'),
+  wrap(async (req, res) => {
+    const a = await owned(req, res)
+    if (!a) return
+    if (!can(req.user, 'audit:read', store.resourceOf(a))) return res.status(403).json({ error: 'This is not your passport.' })
+    res.json(await readAudit({ passportId: a.id }))
+  }),
+)
+
 const DECISIONS: DecisionStatus[] = ['approved', 'more_info', 'declined']
 app.post(
   '/api/passports/:id/decision',
-  requireUser('lender'),
+  requireUser('passport:decide'),
   wrap(async (req, res) => {
     const status = req.body?.status as DecisionStatus
     if (!DECISIONS.includes(status)) return res.status(400).json({ error: 'Choose approve, ask for documents or decline.' })
     const note = String(req.body?.note ?? '').trim().slice(0, 600)
     if (status !== 'approved' && note.length < 3) return res.status(400).json({ error: 'Add a short note so the shop knows what to do next.' })
-    const u = req.user!
-    const a = await store.decide(String(req.params.id), { lenderId: u.id, lenderName: u.name, org: u.org, status, note, at: new Date().toISOString() })
-    return a ? res.json({ ...a, ownerId: store.ownerOf(a) }) : res.status(404).json({ error: 'No passport with that number.' })
+    const u: User = req.user!
+    const before = await owned(req, res)
+    if (!before) return
+    // Checked against this passport's consent, which the shop may have changed a moment ago.
+    if (!can(u, 'passport:decide', store.resourceOf(before))) return res.status(403).json({ error: 'This shop has not shared its passport with your organisation.' })
+    const a = await store.decide(before.id, { lenderId: u.id, orgId: orgOf(u), lenderName: u.name, org: u.org, status, note, at: new Date().toISOString() })
+    await audit(u, 'decision', { passportId: before.id, org: u.org, detail: `${status === 'approved' ? 'Approved' : status === 'more_info' ? 'Asked for documents' : 'Declined'} ${before.profile.shopName}` })
+    return a ? res.json(store.viewFor(a, u)) : res.status(404).json({ error: 'No passport with that number.' })
+  }),
+)
+
+// ───────────────────────── Kosha staff
+
+app.get('/api/admin/lenders', requireUser('lender:verify'), wrap(async (_req, res) => res.json(await lenderAccounts())))
+app.post(
+  '/api/admin/lenders/:id',
+  requireUser('lender:verify'),
+  wrap(async (req, res) => {
+    const status = req.body?.status
+    if (status !== 'verified' && status !== 'rejected') return res.status(400).json({ error: 'Choose approve or reject.' })
+    await setLenderStatus(req.user!, String(req.params.id), status, String(req.body?.reason ?? '').trim().slice(0, 400))
+    res.json(await lenderAccounts())
+  }),
+)
+app.get(
+  '/api/admin/audit',
+  requireUser('audit:read'),
+  wrap(async (req, res) => {
+    if (req.user!.role !== 'admin') return res.status(403).json({ error: 'This is for Kosha staff.' })
+    res.json(await readAudit({ type: req.query.type ? String(req.query.type) : undefined, q: req.query.q ? String(req.query.q) : undefined }))
   }),
 )
 

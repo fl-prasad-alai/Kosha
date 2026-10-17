@@ -11,9 +11,12 @@ interface AuthState {
   signup: (b: { role: Role; name: string; email: string; password: string; org: string }) => Promise<User>
   demo: (role: Role) => Promise<User>
   logout: () => Promise<void>
+  /** Ends every session of this account, on every device. */
+  logoutAll: () => Promise<void>
 }
 
-export const homeFor = (u: User | null) => (u?.role === 'lender' ? '/lender' : u ? '/app' : '/login')
+/** Staff land on the admin console; lenders (verified or not) on the lender page; shops on their passports. */
+export const homeFor = (u: User | null) => (u?.role === 'admin' ? '/admin' : u?.role === 'lender' ? '/lender' : u ? '/app' : '/login')
 
 export const useAuth = create<AuthState>((set, get) => ({
   user: null,
@@ -42,6 +45,11 @@ export const useAuth = create<AuthState>((set, get) => ({
   },
   logout: async () => {
     await api.logout().catch(() => {})
+    useKosha.getState().reset()
+    set({ user: null })
+  },
+  logoutAll: async () => {
+    await api.logoutAll()
     useKosha.getState().reset()
     set({ user: null })
     void get

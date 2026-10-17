@@ -7,6 +7,7 @@ import { useKosha, type Status } from '@/state/kosha'
 import { MagneticButton } from '@/components/unlumen-ui/magnetic-button'
 import { ShimmeringText } from '@/components/unlumen-ui/shimmering-text'
 import { PassportResult } from '@/components/kosha/PassportResult'
+import { ConsentStep } from '@/components/kosha/Consent'
 import { ErrorNote, Panel, StepHeader } from '@/components/kosha/ui'
 import { cn } from '@/lib/utils'
 
@@ -30,7 +31,8 @@ export function StepPassport() {
   const [phase, setPhase] = useState(0)
   const answered = QUESTIONS.filter((q) => s.answers[q.id]?.status === 'done').length
   const reading = Object.values(s.docs).some((d) => d.status === 'reading') || s.location.status === 'reading'
-  const canBuild = s.docs.ledger.status === 'done' && s.assessStatus !== 'reading'
+  const consentOk = s.agreed && (s.consent.scope !== 'selected' || s.consent.lenderIds.length > 0)
+  const canBuild = s.docs.ledger.status === 'done' && s.assessStatus !== 'reading' && consentOk
 
   useEffect(() => {
     if (s.assessStatus !== 'reading') return setPhase(0)
@@ -61,7 +63,7 @@ export function StepPassport() {
   return (
     <>
       <StepHeader eyebrow="Step 6 · The passport" title="Ready to issue the passport" sub="Kosha combines everything it has read. Missing sources are fine; the passport says exactly what was and was not checked." />
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
         <Panel>
           <h3 className="mb-3 font-semibold">Evidence collected</h3>
           <ul className="space-y-2">
@@ -74,6 +76,9 @@ export function StepPassport() {
             <Item icon={Mic} label="Voice interview" status={answered ? 'done' : 'idle'} note={`${answered} of ${QUESTIONS.length} answered`} />
           </ul>
         </Panel>
+        <ConsentStep value={s.consent} agreed={s.agreed} onChange={s.setConsent} onAgree={s.setAgreed} prefilled={!!s.sampleId} />
+      </div>
+      <div className="mt-5">
         <Panel className="relative flex flex-col items-center justify-center overflow-hidden text-center">
           <AnimatePresence mode="wait">
             {s.assessStatus === 'reading' ? (
@@ -93,7 +98,7 @@ export function StepPassport() {
               <motion.div key="idle" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center gap-5 py-8">
                 <div className="font-display text-2xl">Issue the passport</div>
                 <p className="max-w-sm text-sm text-ink-2">
-                  {d.ledger.status !== 'done' ? 'The ledger must be read first.' : reading ? 'Some documents are still being read. You can wait, or issue now with what is ready.' : 'Everything is ready.'}
+                  {d.ledger.status !== 'done' ? 'The ledger must be read first.' : !s.agreed ? 'Choose who can see your passport and tick the consent box above.' : !consentOk ? 'Choose at least one lender, or share with all verified lenders.' : reading ? 'Some documents are still being read. You can wait, or issue now with what is ready.' : 'Everything is ready.'}
                 </p>
                 <MagneticButton
                   disabled={!canBuild}

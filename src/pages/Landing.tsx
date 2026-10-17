@@ -7,7 +7,8 @@ import { MagneticButton } from '@/components/unlumen-ui/magnetic-button'
 import { ShimmeringText } from '@/components/unlumen-ui/shimmering-text'
 import { TextReveal } from '@/components/unlumen-ui/text-reveal'
 import { Tilt } from '@/components/unlumen-ui/tilt'
-import { PassportCard } from '@/components/kosha/PassportCard'
+import { Passport } from '@/components/kosha/passport/Passport'
+import { fromAssessment } from '@/lib/passportView'
 import { loadSamples, type SampleShop } from '@/lib/samples'
 import { COUNTRIES } from '@/lib/format'
 import { useKosha } from '@/state/kosha'
@@ -116,7 +117,7 @@ export default function Landing() {
         </div>
         <motion.div initial={{ opacity: 0, y: 30, rotate: 2 }} animate={{ opacity: 1, y: 0, rotate: 0 }} transition={{ delay: 0.3, duration: 0.9, ease: [0.22, 1, 0.36, 1] }} className="relative">
           <div className="absolute -inset-10 -z-10 rounded-full bg-gold/10 blur-3xl" />
-          <PassportCard a={EXAMPLE} />
+          <Passport v={fromAssessment(EXAMPLE)} live />
           <p className="mt-3 text-center font-mono text-[11px] text-ink-3">Example passport · open a sample shop to build a real one with Gemini</p>
         </motion.div>
       </section>

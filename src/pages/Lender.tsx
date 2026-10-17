@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion } from 'motion/react'
-import { ArrowRight, Inbox } from 'lucide-react'
-import type { PassportSummary } from '@shared/types'
+import { ArrowRight, Hourglass, Inbox, Mail, ShieldX } from 'lucide-react'
+import type { PassportSummary, User } from '@shared/types'
+import { can } from '@shared/policy'
 import { listPassports } from '@/lib/api'
 import { useAuth } from '@/state/auth'
 import { GlowingBadge } from '@/components/unlumen-ui/glowing-badge'
@@ -24,15 +25,66 @@ const DECIDED: Record<string, [string, string]> = {
   declined: ['Declined', 'text-vermilion'],
 }
 
+const STEPS = ['Account created', 'Kosha checks your organisation', 'Shared passports appear here']
+
+/** Lenders see no shop data until Kosha has verified their organisation. */
+function Verifying({ user }: { user: User }) {
+  const rejected = user.status === 'rejected'
+  // The server reads verification fresh on every request; check back now and then so the queue opens by itself.
+  useEffect(() => {
+    if (rejected) return
+    const t = setInterval(() => void useAuth.getState().load(), 30_000)
+    return () => clearInterval(t)
+  }, [rejected])
+  return (
+    <div className="mx-auto max-w-3xl px-4 pb-16 pt-10 sm:px-6">
+      <motion.section initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }} className="glass-strong edge-gold relative overflow-hidden rounded-3xl p-6 sm:p-10">
+        <div className={cn('pointer-events-none absolute -right-20 -top-20 size-64 rounded-full blur-3xl', rejected ? 'bg-vermilion/15' : 'bg-gold/15')} />
+        <div className="relative">
+          <div className={cn('grid size-14 place-items-center rounded-2xl ring-1', rejected ? 'bg-vermilion/12 text-vermilion ring-vermilion/30' : 'bg-amber-k/12 text-amber-k ring-amber-k/30')}>
+            {rejected ? <ShieldX className="size-7" /> : <motion.span animate={{ rotate: [0, 180, 180, 360] }} transition={{ duration: 3.2, repeat: Infinity, ease: 'easeInOut' }}><Hourglass className="size-7" /></motion.span>}
+          </div>
+          <div className="eyebrow mt-6">{user.org}</div>
+          <h1 className="font-display mt-1.5 text-[clamp(28px,4vw,44px)] leading-tight">{rejected ? 'We could not verify your organisation' : 'Your organisation is being verified'}</h1>
+          {rejected ? (
+            <>
+              <p className="mt-3 max-w-[58ch] text-ink-2">Kosha only lets regulated banks and lenders open shop passports, and we were not able to confirm {user.org}. Until then, this account cannot see any shop data.</p>
+              {user.statusNote && <p className="mt-4 rounded-2xl border border-vermilion/40 bg-vermilion/10 px-4 py-3 text-sm"><b className="font-medium">Reason:</b> {user.statusNote}</p>}
+              <p className="mt-4 flex items-center gap-2 text-sm text-ink-2"><Mail className="size-4 shrink-0 text-gold" /> Think this is a mistake? Write to lenders@kosha.app with your organisation's registration details.</p>
+            </>
+          ) : (
+            <>
+              <p className="mt-3 max-w-[58ch] text-ink-2">Shops trust Kosha with their records, so every lender is checked before it sees any shop data. This usually takes one working day. You do not need to sign in again: shared passports appear here as soon as you are verified.</p>
+              <ol className="mt-7 grid gap-3 sm:grid-cols-3">
+                {STEPS.map((s, i) => (
+                  <motion.li key={s} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 + i * 0.1 }} className={cn('rounded-2xl border p-3.5 text-sm', i === 0 ? 'border-jade/40 bg-jade/8' : i === 1 ? 'border-amber-k/40 bg-amber-k/8' : 'border-line')}>
+                    <div className={cn('font-mono text-[11px]', i === 0 ? 'text-jade' : i === 1 ? 'text-amber-k' : 'text-ink-3')}>{i === 0 ? 'DONE' : i === 1 ? 'IN PROGRESS' : 'NEXT'}</div>
+                    <div className="mt-1 font-medium">{s}</div>
+                  </motion.li>
+                ))}
+              </ol>
+            </>
+          )}
+        </div>
+      </motion.section>
+    </div>
+  )
+}
+
 export default function Lender() {
-  const nav = useNavigate()
   const user = useAuth((s) => s.user)!
+  return can(user, 'passport:read:shared') ? <Queue user={user} /> : <Verifying user={user} />
+}
+
+function Queue({ user }: { user: User }) {
+  const nav = useNavigate()
   const [rows, setRows] = useState<PassportSummary[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [tab, setTab] = useState<Tab>('all')
   useEffect(() => void listPassports().then(setRows).catch((e) => setError((e as Error).message)), [])
 
-  const mine = (r: PassportSummary) => (r.decision && r.decision.lenderId === user.id ? r.decision : null)
+  // The server sends only this organisation's decision.
+  const mine = (r: PassportSummary) => r.decision
   const shown = useMemo(() => (rows ?? []).filter((r) => (tab === 'all' ? true : tab === 'decided' ? !!mine(r) : r.status === tab && !mine(r))), [rows, tab])
   const count = (t: Tab) => (rows ?? []).filter((r) => (t === 'all' ? true : t === 'decided' ? !!mine(r) : r.status === t && !mine(r))).length
   const avg = rows?.length ? Math.round(rows.reduce((a, r) => a + r.score, 0) / rows.length) : 0
@@ -42,7 +94,7 @@ export default function Lender() {
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
         <div className="eyebrow">{user.org}</div>
         <h1 className="font-display mt-1.5 text-[clamp(32px,4.4vw,52px)] leading-tight">Passports waiting for a decision</h1>
-        <p className="mt-1 max-w-[62ch] text-ink-2">Every passport arrives with its evidence and checks. Open one to see the exact ledger lines, bills and payments behind each number, then approve, ask for documents or decline.</p>
+        <p className="mt-1 max-w-[62ch] text-ink-2">Shops that chose to share with {user.org} appear here, each with its evidence and checks. Open one to see the exact ledger lines, bills and payments behind each number, then approve, ask for documents or decline.</p>
       </motion.div>
       {error && <div className="mt-6"><ErrorNote error={error} /></div>}
       {!rows && !error && <Reading className="mt-8" text="Loading passports…" />}
@@ -68,7 +120,7 @@ export default function Lender() {
             <Panel className="mt-4 flex flex-col items-center gap-3 py-14 text-center">
               <Inbox className="size-8 text-ink-3" />
               <p className="font-medium">Nothing here</p>
-              <p className="max-w-sm text-sm text-ink-2">{tab === 'decided' ? 'Passports you decide on appear here.' : 'New passports appear here as shops issue them.'}</p>
+              <p className="max-w-sm text-sm text-ink-2">{tab === 'decided' ? 'Passports you decide on appear here.' : 'Passports appear here when shops share them with your organisation.'}</p>
               {tab !== 'all' && <button onClick={() => setTab('all')} className="mt-1 inline-flex items-center gap-1.5 text-sm text-gold">See all passports <ArrowRight className="size-4" /></button>}
             </Panel>
           ) : (
