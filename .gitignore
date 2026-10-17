@@ -9,3 +9,4 @@ scripts/samples/out
 .data
 scripts/samples/build
 scripts/samples/kosha/build
+e2e-shots

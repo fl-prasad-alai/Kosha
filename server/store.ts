@@ -42,7 +42,9 @@ export async function get(id: string): Promise<Assessment | null> {
   if (!/^[A-Z0-9-]{6,40}$/.test(id)) return null
   if (useFirestore) {
     const d = await (await firestore()).doc(id).get()
-    return d.exists ? (d.data() as Assessment) : null
+    if (d.exists) return d.data() as Assessment
+    // the bundled sample passports live in the image until something about them changes
+    try { return JSON.parse(await readFile(path.resolve('cache/passports', `${id}.json`), 'utf8')) } catch { return null }
   }
   for (const dir of [DIR, path.resolve('cache/passports')]) {
     try { return JSON.parse(await readFile(path.join(dir, `${id}.json`), 'utf8')) } catch { /* next */ }
@@ -126,6 +128,15 @@ export async function list(user?: User): Promise<PassportSummary[]> {
   if (useFirestore) {
     const snap = await (await firestore()).orderBy('createdAt', 'desc').limit(50).get()
     all = snap.docs.map((d) => d.data() as Assessment)
+    // add the bundled sample passports that have not been saved to Firestore yet
+    try {
+      for (const f of await readdir(path.resolve('cache/passports'))) {
+        if (!f.endsWith('.json')) continue
+        const a = JSON.parse(await readFile(path.resolve('cache/passports', f), 'utf8')) as Assessment
+        if (!all.some((x) => x.id === a.id)) all.push(a)
+      }
+    } catch { /* no samples */ }
+    all.sort((a, b) => b.createdAt.localeCompare(a.createdAt))
   } else {
     for (const dir of [DIR, path.resolve('cache/passports')]) {
       try {
