@@ -1,74 +1,38 @@
 {
-  "hosting": [
-    {
-      "target": "app",
-      "public": "dist/web",
-      "ignore": [
-        "firebase.json",
-        "**/.*"
-      ],
-      "headers": [
-        {
-          "source": "/assets/**",
-          "headers": [
-            {
-              "key": "Cache-Control",
-              "value": "public, max-age=31536000, immutable"
-            }
-          ]
-        },
-        {
-          "source": "/cache/**",
-          "headers": [
-            {
-              "key": "Cache-Control",
-              "value": "public, max-age=86400"
-            }
-          ]
-        }
-      ],
-      "rewrites": [
-        {
-          "source": "**",
-          "destination": "/index.html"
-        }
-      ]
-    },
-    {
-      "target": "original",
-      "public": "dist/web",
-      "ignore": [
-        "firebase.json",
-        "**/.*"
-      ],
-      "headers": [
-        {
-          "source": "/assets/**",
-          "headers": [
-            {
-              "key": "Cache-Control",
-              "value": "public, max-age=31536000, immutable"
-            }
-          ]
-        },
-        {
-          "source": "/cache/**",
-          "headers": [
-            {
-              "key": "Cache-Control",
-              "value": "public, max-age=86400"
-            }
-          ]
-        }
-      ],
-      "rewrites": [
-        {
-          "source": "**",
-          "destination": "/index.html"
-        }
-      ]
-    }
-  ],
+  "hosting": {
+    "target": "app",
+    "public": "dist/web",
+    "ignore": [
+      "firebase.json",
+      "**/.*"
+    ],
+    "headers": [
+      {
+        "source": "/assets/**",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=31536000, immutable"
+          }
+        ]
+      },
+      {
+        "source": "/cache/**",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=86400"
+          }
+        ]
+      }
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  },
   "firestore": {
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"

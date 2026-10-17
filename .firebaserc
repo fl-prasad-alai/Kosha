@@ -7,9 +7,6 @@
       "hosting": {
         "app": [
           "kosha-ai"
-        ],
-        "original": [
-          "kosha-passport-37864"
         ]
       }
     }

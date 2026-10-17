@@ -129,7 +129,6 @@ Kosha runs entirely on Firebase's free Spark plan: Hosting for the web app, Auth
    npx firebase login
    npx firebase use your-project
    npx firebase target:apply hosting app your-site-id        # e.g. kosha-ai → kosha-ai.web.app
-   npx firebase target:apply hosting original your-project   # the project's default site
    npm run deploy
    node scripts/seed.mjs your-project    # uses gcloud application-default credentials
    ```
