@@ -1,12 +1,15 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { motion } from 'motion/react'
-import { AlertOctagon, Check, Copy, Pause, Sparkles, TrendingUp, Volume2 } from 'lucide-react'
+import { AlertOctagon, Pause, Share2, Sparkles, TrendingUp, Volume2 } from 'lucide-react'
 import type { Assessment } from '@shared/types'
 import { LANGUAGES } from '@shared/questions'
 import { GlowingBadge } from '@/components/unlumen-ui/glowing-badge'
 import TypewriterText from '@/components/smoothui/typewriter-text'
 import BorderBeam from '@/components/smoothui/border-beam'
-import { PassportCard } from './PassportCard'
+import { Passport } from './passport/Passport'
+import { ShareSheet } from './passport/ShareSheet'
+import { fromAssessment, publicOf } from '@/lib/passportView'
+import { useAuth } from '@/state/auth'
 import { Pentagon, PillarBars, ScheduleChart } from './Charts'
 import { EvidenceChip } from './Evidence'
 import { AnimatedNumber, Panel, StatusIcon, StatusPill } from './ui'
@@ -14,18 +17,22 @@ import { say, stopSpeaking } from '@/lib/audio'
 import { money, pct } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
-export function PassportResult({ a, fresh = false }: { a: Assessment; fresh?: boolean }) {
+export function PassportResult({ a, fresh = false, onSaved }: { a: Assessment; fresh?: boolean; onSaved?: (a: Assessment) => void }) {
   const c = a.profile.currency
   const f = (n: number) => money(n, c)
   const [active, setActive] = useState<string | null>(null)
   const [lang, setLang] = useState<'local' | 'english'>(a.explanation.localLang !== 'en' ? 'local' : 'english')
   const [playing, setPlaying] = useState(false)
-  const [copied, setCopied] = useState(false)
+  const [sharing, setSharing] = useState(false)
+  const user = useAuth((s) => s.user)
+  // only the owner's copy carries consent; lenders get the passport without it
+  const who = a.consent && (!a.ownerId || a.ownerId === user?.id) ? 'owner' : user?.role === 'lender' ? 'lender' : 'other'
+  const view = useMemo(() => fromAssessment(a), [a])
+  const pub = useMemo(() => publicOf(a), [a])
   const status = a.offer.status
   const text = lang === 'local' ? a.explanation.local : a.explanation.english
   const shown = a.checks.filter((x) => x.status !== 'missing')
   const missing = a.checks.filter((x) => x.status === 'missing')
-  const url = `${location.origin}/passport/${a.id}`
 
   const listen = async () => {
     if (playing) {
@@ -45,7 +52,7 @@ export function PassportResult({ a, fresh = false }: { a: Assessment; fresh?: bo
       {/* Card + offer */}
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
         <motion.div initial={fresh ? { opacity: 0, y: 30, rotateX: 12 } : false} animate={{ opacity: 1, y: 0, rotateX: 0 }} transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }} style={{ perspective: 1200 }}>
-          <PassportCard a={a} live={fresh} />
+          <Passport v={view} live={fresh} onShare={() => setSharing(true)} />
         </motion.div>
 
         <BorderBeam active={status === 'offer'} colorFrom="#ffd27a" colorTo="#3ee0c4" duration={7} radius={24} className="rounded-3xl">
@@ -187,22 +194,14 @@ export function PassportResult({ a, fresh = false }: { a: Assessment; fresh?: bo
             <button onClick={listen} className="inline-flex items-center gap-2 rounded-full bg-gold px-4 py-2 text-sm font-semibold text-[#1b1203]">
               {playing ? <><Pause className="size-4" /> Stop</> : <><Volume2 className="size-4" /> Listen</>}
             </button>
-            <button
-              onClick={async () => {
-                try {
-                  await navigator.clipboard.writeText(url)
-                  setCopied(true)
-                  setTimeout(() => setCopied(false), 1800)
-                } catch { /* clipboard blocked */ }
-              }}
-              className="glass inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm"
-            >
-              {copied ? <><Check className="size-4 text-jade" /> Link copied</> : <><Copy className="size-4" /> Copy passport link</>}
+            <button onClick={() => setSharing(true)} className="glass inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm">
+              <Share2 className="size-4" /> Share passport
             </button>
           </div>
           <p className="mt-3 text-xs text-ink-3">Voice by Gemini text-to-speech. {a.geminiCalls ? `${a.geminiCalls} Gemini call${a.geminiCalls > 1 ? 's' : ''} for this step.` : ''}</p>
         </Panel>
       </div>
+      <ShareSheet open={sharing} onClose={() => setSharing(false)} pub={pub} who={who} user={user} owned={who === 'owner' ? a : undefined} onSaved={onSaved} />
     </div>
   )
 }

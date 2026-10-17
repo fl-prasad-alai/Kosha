@@ -7,10 +7,12 @@ import { MagneticButton } from '@/components/unlumen-ui/magnetic-button'
 import { ShimmeringText } from '@/components/unlumen-ui/shimmering-text'
 import { TextReveal } from '@/components/unlumen-ui/text-reveal'
 import { Tilt } from '@/components/unlumen-ui/tilt'
-import { PassportCard } from '@/components/kosha/PassportCard'
+import { Passport } from '@/components/kosha/passport/Passport'
+import { fromAssessment } from '@/lib/passportView'
 import { loadSamples, type SampleShop } from '@/lib/samples'
 import { COUNTRIES } from '@/lib/format'
 import { useKosha } from '@/state/kosha'
+import { useAuth } from '@/state/auth'
 
 // Example card for the hero. Clearly labelled as an example on the page.
 const EXAMPLE: Assessment = {
@@ -53,9 +55,18 @@ export default function Landing() {
   const reset = useKosha((s) => s.reset)
   useEffect(() => void loadSamples().then(setSamples), [])
 
+  const auth = useAuth()
+  // Samples run in the demo shop account, so anyone can try Kosha without signing up.
   const open = async (s: SampleShop) => {
+    if (auth.user?.role !== 'business') await auth.demo('business')
     nav('/build')
     await loadSample(s)
+  }
+  const buildOwn = () => {
+    if (auth.user?.role === 'business') {
+      reset()
+      nav('/build')
+    } else nav('/login?mode=signup&role=business')
   }
 
   return (
@@ -94,19 +105,19 @@ export default function Landing() {
               size="lg"
               variant="ghost"
               className="glass h-12 rounded-full px-6 text-[15px]"
-              onClick={() => {
-                reset()
-                nav('/build')
-              }}
+              onClick={buildOwn}
             >
               <Store className="size-4" /> Build your own
             </MagneticButton>
+            <button onClick={() => nav(auth.user?.role === 'lender' ? '/lender' : '/login?role=lender')} className="inline-flex h-12 items-center gap-2 rounded-full px-4 text-[15px] text-ink-2 underline-offset-4 hover:text-ink hover:underline">
+              I'm a lender <ArrowRight className="size-4" />
+            </button>
           </div>
           <p className="mt-6 max-w-[52ch] text-sm text-ink-3">In Kautilya's Arthashastra, kosha is the kingdom's treasury. Here it is the hidden wealth in a shop's own records.</p>
         </div>
         <motion.div initial={{ opacity: 0, y: 30, rotate: 2 }} animate={{ opacity: 1, y: 0, rotate: 0 }} transition={{ delay: 0.3, duration: 0.9, ease: [0.22, 1, 0.36, 1] }} className="relative">
           <div className="absolute -inset-10 -z-10 rounded-full bg-gold/10 blur-3xl" />
-          <PassportCard a={EXAMPLE} />
+          <Passport v={fromAssessment(EXAMPLE)} live />
           <p className="mt-3 text-center font-mono text-[11px] text-ink-3">Example passport · open a sample shop to build a real one with Gemini</p>
         </motion.div>
       </section>

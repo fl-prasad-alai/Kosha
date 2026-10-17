@@ -413,3 +413,21 @@ h1, h2, h3 { text-wrap: balance; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
 }
+
+/* Low-power devices: no backdrop blur, no animated grain. Everything still looks the same at rest. */
+html[data-perf='low'] .glass,
+html[data-perf='low'] .glass-strong,
+html[data-perf='low'] header,
+html[data-perf='low'] .backdrop-blur,
+html[data-perf='low'] .backdrop-blur-xl,
+html[data-perf='low'] .backdrop-blur-sm {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+html[data-perf='low'] .glass { background: color-mix(in oklab, var(--k-bg) 82%, var(--k-ink) 6%); }
+html[data-perf='low'] .glass-strong { background: color-mix(in oklab, var(--k-bg) 90%, var(--k-ink) 6%); }
+html[data-perf='low'] body::after { animation: none; }
+
+/* theme switch: no transitions while the class flips, so nothing is left half-way */
+.theme-switching, .theme-switching *, .theme-switching *::before, .theme-switching *::after { transition: none !important; }
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: .35s; }

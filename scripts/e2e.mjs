@@ -58,6 +58,7 @@ process.on('unhandledRejection', async (e) => {
   process.exit(1)
 })
 
+await page.evaluateOnNewDocument(() => { try { sessionStorage.setItem('kosha-intro-seen', '1') } catch {} })
 await page.goto(BASE, { waitUntil: 'networkidle2' })
 await shot('01-landing', false)
 await page.waitForSelector('#samples button')
@@ -97,13 +98,28 @@ log('passport', id)
 if (id) {
   await page.goto(`${BASE}/passport/${id}`, { waitUntil: 'networkidle2' })
   await waitText('Do the sources agree?')
-  await shot('09-public')
+  await waitText('Manage sharing')
+  await shot('09-owner')
 }
+await page.evaluate(() => fetch('/api/auth/demo', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ role: 'lender' }) }))
 await page.goto(`${BASE}/lender`, { waitUntil: 'networkidle2' })
+await waitText('Passports waiting for a decision')
 await shot('10-lender', false)
+// Signed out, the same link shows only the redacted public record.
+await page.evaluate(() => fetch('/api/auth/logout', { method: 'POST' }))
+if (id) {
+  await page.goto(`${BASE}/passport/${id}`, { waitUntil: 'networkidle2' })
+  await waitText('This is the public record')
+  if (await page.evaluate(() => document.body.innerText.includes('Do the sources agree?'))) await fail('redacted public view', new Error('full passport shown to a signed-out visitor'))
+  await shot('11-public', false)
+}
+await page.evaluate(() => fetch('/api/auth/demo', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ role: 'admin' }) }))
+await page.goto(`${BASE}/admin`, { waitUntil: 'networkidle2' })
+await waitText('Lender verification')
+await shot('12-admin', false)
 await page.setViewport({ width: 400, height: 860 })
 await page.goto(`${BASE}/`, { waitUntil: 'networkidle2' })
-await shot('11-phone', false)
+await shot('13-phone', false)
 
 console.log('console errors:', errors.length ? errors : 'none')
 await browser.close()

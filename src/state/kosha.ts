@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
-import type { Assessment, CallMeta, DocKind, ExtractResultMap, InterviewAnswer, LocationResult, Profile, QuestionId } from '@shared/types'
+import type { Assessment, CallMeta, ConsentInput, DocKind, ExtractResultMap, InterviewAnswer, LocationResult, Profile, QuestionId } from '@shared/types'
 import * as api from '@/lib/api'
 import { loadSamples, sampleFiles, type SampleShop } from '@/lib/samples'
 
@@ -26,6 +26,8 @@ export const DOC_KINDS: DocKind[] = ['ledger', 'invoice', 'payments', 'electrici
 const emptyDoc = (): DocState => ({ files: [], urls: [], status: 'idle' })
 const emptyDocs = () => Object.fromEntries(DOC_KINDS.map((k) => [k, emptyDoc()])) as { [K in DocKind]: DocState<K> }
 
+export const DEFAULT_CONSENT: ConsentInput = { scope: 'all', lenderIds: [], publicShowsOffer: false }
+
 export const EMPTY_PROFILE: Profile = { shopName: '', ownerName: '', address: '', shopType: 'Kirana (general store)', since: 2020, country: 'IN', language: 'hi', currency: 'INR' }
 
 interface KoshaState {
@@ -38,7 +40,12 @@ interface KoshaState {
   assessment: Assessment | null
   assessStatus: Status
   assessError?: string
+  /** Who the shop shares the passport with. `agreed` is the ticked consent box; nothing is issued without it. */
+  consent: ConsentInput
+  agreed: boolean
 
+  setConsent: (c: ConsentInput) => void
+  setAgreed: (v: boolean) => void
   setProfile: (p: Partial<Profile>) => void
   setFiles: (kind: DocKind, files: File[]) => void
   removeFile: (kind: DocKind, index: number) => void
@@ -79,7 +86,11 @@ export const useKosha = create<KoshaState>()(persist((set, get) => ({
   answers: {},
   assessment: null,
   assessStatus: 'idle',
+  consent: DEFAULT_CONSENT,
+  agreed: false,
 
+  setConsent: (consent) => set({ consent }),
+  setAgreed: (agreed) => set({ agreed }),
   setProfile: (p) => set((s) => ({ profile: { ...s.profile, ...p } })),
 
   setFiles: (kind, files) => {
@@ -137,12 +148,16 @@ export const useKosha = create<KoshaState>()(persist((set, get) => ({
 
   build: async () => {
     const s = get()
+    if (!s.agreed) {
+      set({ assessStatus: 'error', assessError: 'Tick the consent box to choose who can see your passport.' })
+      return null
+    }
     set({ assessStatus: 'reading', assessError: undefined })
     try {
       const docs = Object.fromEntries(DOC_KINDS.filter((k) => s.docs[k].result).map((k) => [k, s.docs[k].result]))
       const interview = Object.values(s.answers).map((a) => a?.answer).filter(Boolean)
       const thumbnail = await thumbnailOf(s.docs.shopfront.files[0])
-      const a = await api.buildPassport({ profile: s.profile, docs, location: s.location.result, interview, thumbnail })
+      const a = await api.buildPassport({ profile: s.profile, docs, location: s.location.result, interview, thumbnail, consent: s.consent })
       set({ assessment: a, assessStatus: 'done' })
       return a
     } catch (e) {
@@ -153,7 +168,8 @@ export const useKosha = create<KoshaState>()(persist((set, get) => ({
 
   loadSample: async (sample) => {
     get().reset()
-    set({ sampleId: sample.id, profile: sample.profile, sampleAnswers: sample.interview })
+    // Sample shops are fictional, so consent is pre-filled to keep the walkthrough quick; it stays visible and editable.
+    set({ sampleId: sample.id, profile: sample.profile, sampleAnswers: sample.interview, consent: DEFAULT_CONSENT, agreed: true })
     const entries = await Promise.all(DOC_KINDS.map(async (k) => [k, await sampleFiles(sample.docs[k])] as const))
     for (const [k, files] of entries) get().setFiles(k, files)
     // Start reading everything at once; each step reveals its own result.
@@ -165,7 +181,7 @@ export const useKosha = create<KoshaState>()(persist((set, get) => ({
     controllers.forEach((c) => c.abort())
     controllers.clear()
     Object.values(get().docs).forEach((d) => d.urls.forEach((u) => URL.revokeObjectURL(u)))
-    set({ sampleId: null, sampleAnswers: {}, profile: EMPTY_PROFILE, docs: emptyDocs(), location: { status: 'idle' }, answers: {}, assessment: null, assessStatus: 'idle', assessError: undefined })
+    set({ sampleId: null, sampleAnswers: {}, profile: EMPTY_PROFILE, docs: emptyDocs(), location: { status: 'idle' }, answers: {}, assessment: null, assessStatus: 'idle', assessError: undefined, consent: DEFAULT_CONSENT, agreed: false })
   },
 
   restoreFiles: async () => {
@@ -194,6 +210,8 @@ export const useKosha = create<KoshaState>()(persist((set, get) => ({
     answers: Object.fromEntries(Object.entries(s.answers).filter(([, a]) => a?.status === 'done')),
     assessment: s.assessment,
     assessStatus: s.assessment ? 'done' : 'idle',
+    consent: s.consent,
+    agreed: s.agreed,
   }) as unknown as KoshaState,
   onRehydrateStorage: () => (state) => void state?.restoreFiles(),
 }))
