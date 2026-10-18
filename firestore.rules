@@ -93,7 +93,9 @@ service cloud.firestore {
     // ── the redacted public record behind every QR code: anyone may read it.
     // Only the owner writes it, and its score, band, status and seal must match the passport.
     match /public/{id} {
-      allow read: if true;
+      // open one record by its number (as the QR does), but never list them all
+      allow get: if true;
+      allow list: if false;
       allow create, update: if signedIn()
         && request.resource.data.ownerId == uid()
         && passport(id).ownerId == uid()
