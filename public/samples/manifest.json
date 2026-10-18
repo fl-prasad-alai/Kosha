@@ -32,6 +32,13 @@
     ],
     "shopfront": [
      "shopA/shopfront.jpg"
+    ],
+    "identity": [
+     "shopA/pan-card.jpg"
+    ],
+    "business": [
+     "shopA/gst-certificate.jpg",
+     "shopA/udyam-certificate.jpg"
     ]
    },
    "interview": {
@@ -76,6 +83,12 @@
     ],
     "shopfront": [
      "shopB/shopfront.jpg"
+    ],
+    "identity": [
+     "shopB/philsys-id.jpg"
+    ],
+    "business": [
+     "shopB/dti-certificate.jpg"
     ]
    },
    "interview": {

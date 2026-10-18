@@ -6,6 +6,7 @@ import { LockKeyhole, Share2, X } from 'lucide-react'
 import HolographicFoil from '@/components/smoothui/holographic-foil'
 import { AnimatedNumber } from '../ui'
 import { coverArt, ART_H, ART_W } from './art'
+import { PROOF_LABEL } from '@shared/types'
 import { SOURCES_TOTAL, verifyUrl, type PassportView } from '@/lib/passportView'
 import { COUNTRIES, money, pct } from '@/lib/format'
 import { getTier } from '@/lib/perf'
@@ -127,6 +128,8 @@ export function Passport({ v, live = false, onShare, className }: Props) {
     { k: 'Gross margin', v: v.margin != null ? pct(v.margin) : undefined },
     { k: 'Paid digitally', v: v.digitalShare != null ? pct(v.digitalShare) : undefined },
     { k: 'Cross-checked', v: `${v.sources} of ${SOURCES_TOTAL} sources` },
+    // passports issued before identity checks existed simply leave this out
+    ...(v.idLevel ? [{ k: 'Identity', v: `${PROOF_LABEL[v.idLevel]}${v.bizLevel && v.bizLevel !== 'none' ? ' · registered' : ''}` }] : []),
   ]
   const offerLine = held
     ? 'One record is being checked'

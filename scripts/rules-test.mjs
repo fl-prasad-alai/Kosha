@@ -35,7 +35,7 @@ const newLender = await client(`new${stamp}@bank.test`, 'password123', true)
 const newShop = await client(`shop${stamp}@shop.test`, 'password123', true)
 
 // accounts
-await expect('a new lender to sign up as pending', true, () => setDoc(doc(newLender.db, 'users', newLender.uid), { id: newLender.uid, role: 'lender', name: 'New Lender', email: `new${stamp}@bank.test`, org: 'Test Bank', orgId: 'test-bank', status: 'pending', createdAt: new Date().toISOString() }))
+await expect('a new lender to sign up as pending', true, () => setDoc(doc(newLender.db, 'users', newLender.uid), { id: newLender.uid, role: 'lender', name: 'New Lender', email: `new${stamp}@bank.test`, org: 'Test Bank', orgId: 'test-bank', status: 'pending', orgType: 'nbfc', regNo: 'N-13.01234', createdAt: new Date().toISOString() }))
 await expect('a new shop to make itself admin', false, () => setDoc(doc(newShop.db, 'users', newShop.uid), { id: newShop.uid, role: 'admin', name: 'X', email: `shop${stamp}@shop.test`, org: 'X', createdAt: '' }))
 await expect('a new shop to sign up', true, () => setDoc(doc(newShop.db, 'users', newShop.uid), { id: newShop.uid, role: 'business', name: 'New Shop', email: `shop${stamp}@shop.test`, org: 'New Store', createdAt: new Date().toISOString() }))
 await expect('a pending lender to verify itself', false, () => updateDoc(doc(newLender.db, 'users', newLender.uid), { status: 'verified' }))
@@ -97,6 +97,15 @@ await expect('the owner to read its passport trail', true, () => getDocs(query(c
 await expect('a shop to read the whole log', false, () => getDocs(collection(shop.db, 'audit')))
 await expect('admin to read the whole log', true, () => getDocs(query(collection(admin.db, 'audit'), orderBy('at', 'desc'), limit(50))))
 await expect('anyone to edit a log entry', false, () => updateDoc(doc(admin.db, 'audit', e1.id), { detail: 'changed' }))
+
+// one identity, one shop
+const FP = `fp${stamp}`
+await expect('a shop to claim a new PAN fingerprint', true, () => setDoc(doc(newShop.db, 'identities', FP), { ownerId: newShop.uid, at: new Date().toISOString() }))
+await expect('the claimant to read its claim', true, () => getDoc(doc(newShop.db, 'identities', FP)))
+await expect('another shop to read that claim', false, () => getDoc(doc(shop.db, 'identities', FP)))
+await expect('another shop to claim the same PAN', false, () => setDoc(doc(shop.db, 'identities', FP), { ownerId: shop.uid, at: new Date().toISOString() }))
+await expect('anyone to list claims', false, () => getDocs(collection(shop.db, 'identities')))
+await expect('a lender to claim a PAN', false, () => setDoc(doc(lender.db, 'identities', `${FP}b`), { ownerId: lender.uid, at: '' }))
 
 // lender organisations
 await expect('a signed-in shop to list verified organisations', true, () => getDocs(collection(shop.db, 'orgs')))

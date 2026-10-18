@@ -2,6 +2,7 @@
 import type { Assessment, Check, Purpose, Reason, SourceNode } from '@shared/types'
 import { callCount, generate } from './gemini.ts'
 import { annuity, computeChecks, computeMetrics, computeOffer, computePillars, money, scoreFrom, type Inputs } from './score.ts'
+import { buildIdentity } from './identity.ts'
 
 const LANG_NAMES: Record<string, string> = { hi: 'Hindi (Devanagari)', mr: 'Marathi (Devanagari)', tl: 'Tagalog (Taglish is fine)', id: 'Bahasa Indonesia', en: 'English' }
 
@@ -55,7 +56,9 @@ Language: reasons and explanationEnglish are in English. Only explanationLocal i
 export async function assess(i: Inputs, thumbnail?: string): Promise<Assessment> {
   const before = callCount
   const m = computeMetrics(i)
-  const checks = computeChecks(i, m)
+  // Identity checks join the cross-checks and the hold gate, but never add score points.
+  const id = buildIdentity({ profile: i.profile, input: i.idInput, identity: i.identity, business: i.business, electricity: i.electricity, payments: i.payments, claim: i.claim })
+  const checks = [...computeChecks(i, m), ...id.checks]
   const pillars = computePillars(i, m, checks)
   const { score, band } = scoreFrom(pillars)
   const c = i.profile.currency
@@ -148,6 +151,7 @@ export async function assess(i: Inputs, thumbnail?: string): Promise<Assessment>
     sourcesUsed,
     geminiCalls: callCount - before,
     thumbnail,
+    identity: id.summary,
   }
 }
 

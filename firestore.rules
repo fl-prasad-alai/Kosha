@@ -26,11 +26,12 @@ service cloud.firestore {
       allow create: if signedIn() && userId == uid()
         && request.resource.data.id == uid()
         && request.resource.data.email == request.auth.token.email
-        && request.resource.data.keys().hasOnly(['id', 'role', 'name', 'email', 'org', 'orgId', 'status', 'createdAt'])
+        && request.resource.data.keys().hasOnly(['id', 'role', 'name', 'email', 'org', 'orgId', 'status', 'createdAt', 'orgType', 'regNo'])
         && request.resource.data.name is string && request.resource.data.org is string
         && (
           (request.resource.data.role == 'business' && !('status' in request.resource.data) && !('orgId' in request.resource.data))
-          || (request.resource.data.role == 'lender' && request.resource.data.status == 'pending' && request.resource.data.orgId is string)
+          || (request.resource.data.role == 'lender' && request.resource.data.status == 'pending' && request.resource.data.orgId is string
+              && request.resource.data.regNo is string && request.resource.data.regNo.size() >= 4)
         );
       allow update: if signedIn() && (
         // an account may only record "signed out on every device"
@@ -79,6 +80,14 @@ service cloud.firestore {
         allow create: if isVerifiedLender() && covers(passport(id).consent) && request.resource.data.lenderId == uid();
         allow update, delete: if false;
       }
+    }
+
+    // ── one identity, one shop: a PAN's one-way fingerprint, claimed by the first shop that uses it.
+    // Only the claimant can read its claim; anyone else's attempt to claim it is refused, which is the signal.
+    match /identities/{fingerprint} {
+      allow get: if signedIn() && resource.data.ownerId == uid();
+      allow create: if isShop() && request.resource.data.ownerId == uid() && request.resource.data.keys().hasOnly(['ownerId', 'at']);
+      allow list, update, delete: if false;
     }
 
     // ── the redacted public record behind every QR code: anyone may read it.

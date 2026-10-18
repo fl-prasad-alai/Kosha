@@ -22,6 +22,8 @@ const TITLES: Record<string, string> = {
   shopfront: 'Shopfront',
   location: 'Neighbourhood',
   interview: 'Voice interview',
+  identity: 'Identity document',
+  business: 'Business registration',
 }
 
 /** A small clickable chip that opens the evidence behind a claim. */
@@ -78,6 +80,20 @@ function useResolved(r: EvidenceRef | null) {
     if (b) {
       box = b.unitsBox
       caption = `${b.month} · ${b.units} kWh · ${f(b.amount)} · ${b.paymentNote}`
+    }
+  } else if (r.doc === 'identity') {
+    const d = docs.identity.result?.documents[r.index ?? -1]
+    if (d) {
+      file = d.file
+      box = d.nameBox ?? d.numberBox
+      caption = `${d.nameLatin || d.name}${d.dob ? ` · born ${d.dob}` : ''}${d.tamperSigns.length ? ` · ${d.tamperSigns[0]}` : ''}`
+    }
+  } else if (r.doc === 'business') {
+    const d = docs.business.result?.documents[r.index ?? -1]
+    if (d) {
+      file = d.file
+      box = d.numberBox
+      caption = `${d.number} · ${d.tradeName || d.legalName}${d.registeredOn ? ` · since ${d.registeredOn}` : ''}${d.statusPrinted ? ` · ${d.statusPrinted}` : ''}`
     }
   } else if (r.doc === 'shopfront') {
     box = docs.shopfront.result?.signBox

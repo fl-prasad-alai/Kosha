@@ -52,6 +52,17 @@ Kosha reads those records with Gemini, cross-checks them against each other, sco
 - One-click **demo accounts** on the sign-in page: *Sunita* (Sharma General Store), *Arjun* (Pune Merchants Co-operative Bank, a verified lender) and a subtle *Admin* button (*Meera Iyer*, Kosha Operations). The password for `shop@demo.kosha`, `lender@demo.kosha` and `admin@demo.kosha` is `kosha-demo`.
 - Security: accounts use Firebase Authentication (passwords are never stored by Kosha, and repeated wrong passwords are throttled). Role and lender verification live in Firestore and are read fresh on every request; nobody can make themselves verified or an admin. *Sign out on all devices* ends every earlier sign-in. After issue, a passport's score and evidence cannot be changed, only the shop's consent. Sign-ins, lender views, decisions, consent changes and verifications go to an append-only audit log that no one can edit or delete. [`scripts/rules-test.mjs`](scripts/rules-test.mjs) checks 55 allowed and refused cases against the Firestore emulator.
 
+### Verified identity: who runs the shop, and is it registered?
+The first step, **"Who you are"**, takes about a minute and is scan-first:
+- **Aadhaar Secure QR:** scanned with the phone camera and checked against **UIDAI's published public keys** in the browser. A genuine card makes the identity **Govt-signed**. The QR never carries the full Aadhaar number, and nothing from the card is uploaded.
+- **PAN or any national ID:** Gemini reads the number, name and date of birth and looks for signs of editing. Kosha checks the PAN format, that it belongs to an individual, and that its 5th letter matches the surname.
+- **Business registration (optional):** GSTIN (with its **check digit**, the **PAN inside it** and its **state code**), Udyam or Udyam Assist, FSSAI, shop licence, or DTI and TIN in the Philippines.
+- Shop details are filled in from these documents, and a profile-strength meter shows what each document adds.
+
+Every fact gets a proof level: *Self-declared*, *Read from document*, *Registry-confirmed* or *Govt-signed*. Four new cross-checks join "Do the sources agree?": the same person on every document and bill, a registration that fits, ID addresses that fit the shop, and **one identity, one shop** (a PAN backs only one shop; Kosha keeps just a one-way fingerprint of it). A failed identity check **holds the offer**, like an edited payment record. Identity never adds score points.
+
+Lenders see an identity column and filters (*Govt-signed ID*, *Registered business*), a masked identity panel, a printable **KYC summary**, and can ask for exact documents as a checklist the shop sees. Lenders sign up with their regulator registration number, and shops see which lenders are regulated. `npx tsx scripts/identity-test.ts` checks the rules on good and bad cases.
+
 ### Smooth on old phones and PCs
 Kosha checks the device (CPU cores, memory, data saver, reduced motion) and watches the real frame rate. On a slow device it lowers the 3D quality, freezes the animated background and drops blur effects, and it stops animating whenever the tab is hidden.
 

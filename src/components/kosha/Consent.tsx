@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { Check, Eye, EyeOff, Globe2, Landmark, Loader2, LockKeyhole, ShieldCheck, ShieldOff, Users } from 'lucide-react'
+import { Check, Eye, EyeOff, Globe2, Landmark, Loader2, LockKeyhole, ShieldCheck, ShieldOff, Users, BadgeCheck } from 'lucide-react'
 import type { Assessment, Consent, ConsentInput, LenderOrg } from '@shared/types'
 import { listLenders, setConsent } from '@/lib/api'
+import { LENDER_TYPES } from '@shared/types'
 import { ErrorNote } from './ui'
 import { cn } from '@/lib/utils'
 
@@ -81,6 +82,8 @@ export function ConsentForm({ value, onChange, compact = false }: { value: Conse
                   return (
                     <button key={o.id} type="button" aria-pressed={on} onClick={() => toggle(o.id)} className={cn('inline-flex min-h-10 items-center gap-2 rounded-full px-3.5 text-sm ring-1 transition', on ? 'bg-jade/12 text-jade ring-jade/40' : 'bg-glass text-ink-2 ring-line hover:text-ink')}>
                       {on ? <Check className="size-4" /> : <Landmark className="size-4 text-ink-3" />} {o.org}
+                      {o.orgType && <span className="text-xs text-ink-3">· {LENDER_TYPES[o.orgType]}</span>}
+                      {o.regulated && <span title="Kosha checked this lender's regulator registration" className="inline-flex items-center gap-0.5 rounded-full bg-jade/12 px-1.5 py-0.5 text-[10px] font-medium text-jade"><BadgeCheck className="size-3" />Regulated</span>}
                     </button>
                   )
                 })}

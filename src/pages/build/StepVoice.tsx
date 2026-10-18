@@ -100,7 +100,7 @@ export function StepVoice() {
   return (
     <>
       <StepHeader
-        eyebrow="Step 5 · Voice interview"
+        eyebrow="Step 6 · Voice interview"
         title="Five questions, in the owner's own words"
         sub="Speak in any language. Gemini listens, translates, and checks the answers against the documents. It never judges accent or tone."
         right={<span className="font-mono text-sm text-ink-2">{done} of {QUESTIONS.length} answered</span>}

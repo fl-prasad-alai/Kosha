@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { AnimatePresence, motion } from 'motion/react'
 import { BadgeCheck, Hourglass, Inbox, Loader2, Search, ShieldX } from 'lucide-react'
 import type { AuditEntry, AuditType, LenderAccount, LenderStatus } from '@shared/types'
+import { LENDER_TYPES } from '@shared/types'
 import { adminAudit, adminLenders, verifyLender } from '@/lib/api'
 import { useAuth } from '@/state/auth'
 import { GlowingBadge } from '@/components/unlumen-ui/glowing-badge'
@@ -31,6 +32,16 @@ const EVENT: Record<AuditType, [string, string]> = {
   consent: ['Consent change', 'text-jade'],
   lender_verified: ['Lender verified', 'text-jade'],
   lender_rejected: ['Lender rejected', 'text-vermilion'],
+  identity_flag: ['Identity alert', 'text-vermilion'],
+}
+
+// What staff should check before verifying a lender: its regulator number and whether the email is a work address.
+const PERSONAL = /@(gmail|yahoo|outlook|hotmail|live|icloud|proton|rediffmail|aol)\./i
+function EmailHint({ email, org }: { email: string; org: string }) {
+  const domain = email.split('@')[1]?.split('.')[0] ?? ''
+  const personal = PERSONAL.test(email)
+  const fits = !personal && org.toLowerCase().replace(/[^a-z]/g, '').includes(domain.toLowerCase().replace(/[^a-z]/g, '').slice(0, 5))
+  return <span className={cn('ml-1.5 rounded-full px-1.5 py-0.5 text-[10px]', personal ? 'bg-amber-k/12 text-amber-k' : fits ? 'bg-jade/12 text-jade' : 'bg-glass text-ink-3')}>{personal ? 'personal email' : fits ? 'work email matches' : 'check domain'}</span>
 }
 const ROLE = { business: 'Shop', lender: 'Lender', admin: 'Kosha staff' } as const
 
@@ -89,7 +100,7 @@ function Lenders({ rows, setRows }: { rows: LenderAccount[]; setRows: (r: Lender
         {rows.map((l) => (
           <li key={l.id} className="px-4 py-4">
             <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0"><div className="truncate font-medium">{l.org}</div><div className="truncate text-xs text-ink-3">{l.name} · {l.email}</div></div>
+              <div className="min-w-0"><div className="truncate font-medium">{l.org}</div><div className="truncate text-xs text-ink-3">{l.name} · {l.email}</div>{l.regNo && <div className="font-mono text-[11px] text-ink-3">{l.orgType ? `${LENDER_TYPES[l.orgType]} · ` : ''}Reg. {l.regNo}</div>}</div>
               <GlowingBadge variant={STATUS[l.status!].variant} dot pulse={l.status === 'pending'}>{STATUS[l.status!].label}</GlowingBadge>
             </div>
             <div className="mt-1 font-mono text-[11px] text-ink-3">Signed up {day(l.createdAt)}{l.statusNote ? ` · ${l.statusNote}` : ''}</div>
@@ -112,8 +123,8 @@ function Lenders({ rows, setRows }: { rows: LenderAccount[]; setRows: (r: Lender
           <tbody>
             {rows.map((l, i) => (
               <motion.tr key={l.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }} className="border-t border-line align-top">
-                <td className="px-5 py-3"><div className="font-medium">{l.org}</div><div className="font-mono text-[11px] text-ink-3">{l.orgId}</div></td>
-                <td className="py-3"><div>{l.name}</div><div className="text-xs text-ink-3">{l.email}</div></td>
+                <td className="px-5 py-3"><div className="font-medium">{l.org}</div><div className="font-mono text-[11px] text-ink-3">{l.orgType ? `${LENDER_TYPES[l.orgType]} · ` : ''}{l.regNo ? `Reg. ${l.regNo}` : l.orgId}</div></td>
+                <td className="py-3"><div>{l.name}</div><div className="text-xs text-ink-3">{l.email}{!l.demo && <EmailHint email={l.email} org={l.org} />}</div></td>
                 <td className="py-3 text-ink-2">{day(l.createdAt)}</td>
                 <td className="py-3 pl-6">
                   <GlowingBadge variant={STATUS[l.status!].variant} dot pulse={l.status === 'pending'}>{STATUS[l.status!].label}</GlowingBadge>

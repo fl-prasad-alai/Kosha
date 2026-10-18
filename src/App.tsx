@@ -13,6 +13,7 @@ const Lender = lazy(() => import('@/pages/Lender'))
 const Login = lazy(() => import('@/pages/Login'))
 const Home = lazy(() => import('@/pages/Home'))
 const Admin = lazy(() => import('@/pages/Admin'))
+const KycSummary = lazy(() => import('@/pages/KycSummary'))
 
 const INTRO_KEY = 'kosha-intro-seen'
 
@@ -48,6 +49,7 @@ export default function App() {
             <Route path="/app" element={<RequireAuth role="business"><Home /></RequireAuth>} />
             <Route path="/build" element={<RequireAuth role="business"><Build /></RequireAuth>} />
             <Route path="/passport/:id" element={<PassportPage />} />
+            <Route path="/passport/:id/kyc" element={<RequireAuth><KycSummary /></RequireAuth>} />
             <Route path="/lender" element={<RequireAuth role="lender"><Lender /></RequireAuth>} />
             <Route path="/admin" element={<RequireAuth role="admin" need="lender:verify"><Admin /></RequireAuth>} />
             <Route path="*" element={<Landing />} />

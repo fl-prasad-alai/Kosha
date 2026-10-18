@@ -51,7 +51,7 @@ export function StepLedger() {
   return (
     <>
       <StepHeader
-        eyebrow="Step 2 · The khata"
+        eyebrow="Step 3 · The khata"
         title="Photograph the handwritten ledger"
         sub="Two to four recent pages are enough. Gemini reads every line in the owner's own script, translates it, and sorts it into sales, stock bought and credit."
         right={doc.meta && <MetaLine meta={doc.meta} />}

@@ -18,6 +18,7 @@ const page = await browser.newPage()
 const errors = []
 page.on('console', (m) => m.type() === 'error' && errors.push(m.text()))
 page.on('console', (m) => m.type() === 'warn' && /gemini|tts|location|access/i.test(m.text()) && console.log('  warn:', m.text().slice(0, 200)))
+if (process.env.KOSHA_LOG_CACHE) page.on('response', (r) => { const u = new URL(r.url()); if (u.pathname.startsWith('/cache/')) console.log('  cache', (r.headers()['content-type'] ?? '').includes('html') || r.status() >= 400 ? 'MISS' : 'hit ', u.pathname) })
 page.on('pageerror', (e) => errors.push(String(e)))
 
 const t0 = Date.now()
@@ -133,5 +134,16 @@ await page.setViewport({ width: 400, height: 860 })
 await page.goto(`${BASE}/`, { waitUntil: 'networkidle2' })
 await shot('13-phone', false)
 
+// KOSHA_BAKE=1: save what Gemini read for the sample shop into cache/, so judges' sample runs are instant.
+if (process.env.KOSHA_BAKE) {
+  const { writeFile } = await import('node:fs/promises')
+  const entries = await page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith('kosha-gemini:')).map((k) => [k.slice(13), localStorage.getItem(k)]))
+  for (const [key, value] of entries) {
+    const v = JSON.parse(value)
+    if (v.task?.startsWith('narrate')) continue // depends on the month; always fresh
+    await writeFile(`cache/${key}.json`, JSON.stringify({ task: v.task, data: v.data, meta: v.meta, grounding: v.grounding }))
+  }
+  console.log('baked', entries.length, 'results into cache/')
+}
 console.log('console errors:', errors.length ? errors : 'none')
 await browser.close()

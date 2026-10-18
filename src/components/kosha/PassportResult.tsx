@@ -12,6 +12,7 @@ import { fromAssessment, publicOf } from '@/lib/passportView'
 import { useAuth } from '@/state/auth'
 import { Pentagon, PillarBars, ScheduleChart } from './Charts'
 import { EvidenceChip } from './Evidence'
+import { IdentityPanel } from './Assurance'
 import { AnimatedNumber, Panel, StatusIcon, StatusPill } from './ui'
 import { say, stopSpeaking } from '@/lib/audio'
 import { money, pct } from '@/lib/format'
@@ -101,6 +102,8 @@ export function PassportResult({ a, fresh = false, onSaved }: { a: Assessment; f
           </Panel>
         </BorderBeam>
       </div>
+
+      <IdentityPanel id={a.identity} />
 
       {/* Cross-check */}
       <Panel>

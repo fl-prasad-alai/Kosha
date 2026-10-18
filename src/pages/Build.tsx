@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { ArrowLeft, ArrowRight, BookOpenText, Check, Loader2, MapPin, Mic, Receipt, ScrollText, Store } from 'lucide-react'
+import { ArrowLeft, ArrowRight, BookOpenText, Check, Fingerprint, Loader2, MapPin, Mic, Receipt, ScrollText, Store } from 'lucide-react'
 import { QUESTIONS } from '@shared/questions'
 import { useKosha } from '@/state/kosha'
+import { StepIdentity } from './build/StepIdentity'
 import { StepShop } from './build/StepShop'
 import { StepLedger } from './build/StepLedger'
 import { StepProof } from './build/StepProof'
@@ -12,6 +13,7 @@ import { StepPassport } from './build/StepPassport'
 import { cn } from '@/lib/utils'
 
 const STEPS = [
+  { id: 'you', label: 'You', icon: Fingerprint, View: StepIdentity },
   { id: 'shop', label: 'Shop', icon: Store, View: StepShop },
   { id: 'ledger', label: 'Ledger', icon: BookOpenText, View: StepLedger },
   { id: 'proof', label: 'Proof', icon: Receipt, View: StepProof },
@@ -28,6 +30,7 @@ export default function Build() {
   const state = (i: number): 'done' | 'busy' | 'todo' => {
     const d = s.docs
     switch (STEPS[i].id) {
+      case 'you': return d.identity.status === 'reading' || d.business.status === 'reading' || s.qr.status === 'reading' ? 'busy' : s.idInput.aadhaar || d.identity.result || s.idInput.pan ? 'done' : 'todo'
       case 'shop': return profileOk ? 'done' : 'todo'
       case 'ledger': return d.ledger.status === 'done' ? 'done' : d.ledger.status === 'reading' ? 'busy' : 'todo'
       case 'proof': {
@@ -41,16 +44,17 @@ export default function Build() {
   }
 
   // Sample shops arrive with the profile filled in, so start on the ledger.
+  const SHOP = 1
   useEffect(() => {
-    if (s.sampleId) setStep((x) => (x === 0 ? 1 : x))
+    if (s.sampleId) setStep((x) => (x <= SHOP ? SHOP + 1 : x))
   }, [s.sampleId])
 
   useEffect(() => window.scrollTo({ top: 0, behavior: 'smooth' }), [step])
 
   const go = (i: number) => {
-    if (i > 0 && !profileOk) return setStep(0)
+    if (i > SHOP && !profileOk) return setStep(SHOP)
     // Start the neighbourhood scan in the background as soon as the address is known.
-    if (step === 0 && i > 0 && s.location.status !== 'reading' && s.location.forAddress !== s.profile.address) void s.scan()
+    if (step === SHOP && i > SHOP && s.location.status !== 'reading' && s.location.forAddress !== s.profile.address) void s.scan()
     setStep(Math.max(0, Math.min(STEPS.length - 1, i)))
   }
   const View = STEPS[step].View
@@ -99,9 +103,9 @@ export default function Build() {
           <button onClick={() => go(step - 1)} disabled={step === 0} className="glass inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-sm disabled:opacity-40">
             <ArrowLeft className="size-4" /> Back
           </button>
-          <span className="mx-auto hidden text-sm text-ink-3 sm:block">{step === 0 && !profileOk ? 'Add the shop name, owner and address to continue' : `Step ${step + 1} of ${STEPS.length}`}</span>
+          <span className="mx-auto hidden text-sm text-ink-3 sm:block">{step === SHOP && !profileOk ? 'Add the shop name, owner and address to continue' : `Step ${step + 1} of ${STEPS.length}`}</span>
           {step < STEPS.length - 1 && (
-            <button onClick={() => go(step + 1)} disabled={step === 0 && !profileOk} className="ml-auto inline-flex items-center gap-1.5 rounded-full bg-gold px-5 py-2 text-sm font-semibold text-[#1b1203] disabled:opacity-40 sm:ml-0">
+            <button onClick={() => go(step + 1)} disabled={step === SHOP && !profileOk} className="ml-auto inline-flex items-center gap-1.5 rounded-full bg-gold px-5 py-2 text-sm font-semibold text-[#1b1203] disabled:opacity-40 sm:ml-0">
               {step === STEPS.length - 2 ? 'Review & issue' : 'Continue'} <ArrowRight className="size-4" />
             </button>
           )}

@@ -23,7 +23,7 @@ const created = '2026-10-01T00:00:00.000Z'
 const DEMO_USERS = [
   { id: 'demo-shop', role: 'business', name: 'Sunita Sharma', email: 'shop@demo.kosha', org: 'Sharma General Store', createdAt: created, demo: true },
   { id: 'demo-nena', role: 'business', name: 'Nena Dizon', email: 'nena@demo.kosha', org: "Nena's Sari-Sari Store", createdAt: created, demo: true },
-  { id: 'demo-lender', role: 'lender', name: 'Arjun Mehta', email: 'lender@demo.kosha', org: 'Pune Merchants Co-operative Bank', orgId: 'pune-merchants-co-op', status: 'verified', verifiedAt: created, createdAt: created, demo: true },
+  { id: 'demo-lender', role: 'lender', name: 'Arjun Mehta', email: 'lender@demo.kosha', org: 'Pune Merchants Co-operative Bank', orgId: 'pune-merchants-co-op', status: 'verified', orgType: 'cooperative', regNo: 'SAMPLE-UCB-0001', verifiedAt: created, createdAt: created, demo: true },
   { id: 'demo-admin', role: 'admin', name: 'Meera Iyer', email: 'admin@demo.kosha', org: 'Kosha Operations', createdAt: created, demo: true },
 ]
 
@@ -46,7 +46,7 @@ for (const u of DEMO_USERS) {
   }
   await db.doc(`users/${u.id}`).set(u)
 }
-await db.doc('orgs/pune-merchants-co-op').set({ id: 'pune-merchants-co-op', org: 'Pune Merchants Co-operative Bank' })
+await db.doc('orgs/pune-merchants-co-op').set({ id: 'pune-merchants-co-op', org: 'Pune Merchants Co-operative Bank', orgType: 'cooperative', regulated: true })
 
 for (const f of readdirSync('cache/passports').filter((x) => x.endsWith('.json'))) {
   const a = JSON.parse(readFileSync(`cache/passports/${f}`, 'utf8'))

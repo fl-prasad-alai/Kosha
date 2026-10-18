@@ -18,7 +18,7 @@ export function StepShop() {
 
   return (
     <>
-      <StepHeader eyebrow="Step 1 · The shop" title="Tell Kosha about the shop" sub="These details are matched against every document, so use the name and address exactly as they appear on bills." />
+      <StepHeader eyebrow="Step 2 · The shop" title="Tell Kosha about the shop" sub="These details are matched against every document, so use the name and address exactly as they appear on bills." />
       <div className="grid gap-5 lg:grid-cols-[1.2fr_1fr]">
         <Panel>
           <div className="grid gap-4 sm:grid-cols-2">

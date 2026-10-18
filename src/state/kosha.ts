@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
-import type { Assessment, CallMeta, ConsentInput, DocKind, ExtractResultMap, InterviewAnswer, LocationResult, Profile, QuestionId } from '@shared/types'
+import type { Assessment, CallMeta, ConsentInput, DocKind, ExtractResultMap, IdentityInput, InterviewAnswer, LocationResult, Profile, QuestionId } from '@shared/types'
+import { readAadhaarQr } from '@/lib/aadhaarQr'
 import * as api from '@/lib/api'
 import { loadSamples, sampleFiles, type SampleShop } from '@/lib/samples'
 
@@ -21,7 +22,7 @@ export interface AnswerState {
   error?: string
 }
 
-export const DOC_KINDS: DocKind[] = ['ledger', 'invoice', 'payments', 'electricity', 'shopfront']
+export const DOC_KINDS: DocKind[] = ['identity', 'business', 'ledger', 'invoice', 'payments', 'electricity', 'shopfront']
 
 const emptyDoc = (): DocState => ({ files: [], urls: [], status: 'idle' })
 const emptyDocs = () => Object.fromEntries(DOC_KINDS.map((k) => [k, emptyDoc()])) as { [K in DocKind]: DocState<K> }
@@ -43,10 +44,16 @@ interface KoshaState {
   /** Who the shop shares the passport with. `agreed` is the ticked consent box; nothing is issued without it. */
   consent: ConsentInput
   agreed: boolean
+  /** Who the owner is: typed numbers and the Aadhaar QR, if scanned. */
+  idInput: IdentityInput
+  qr: { status: Status; error?: string }
 
   setConsent: (c: ConsentInput) => void
   setAgreed: (v: boolean) => void
   setProfile: (p: Partial<Profile>) => void
+  setIdInput: (p: Partial<IdentityInput>) => void
+  /** Reads an Aadhaar Secure QR (the decoded digits) and checks UIDAI's signature, all in the browser. */
+  scanQr: (text: string) => Promise<void>
   setFiles: (kind: DocKind, files: File[]) => void
   removeFile: (kind: DocKind, index: number) => void
   read: (kind: DocKind) => Promise<void>
@@ -88,6 +95,19 @@ export const useKosha = create<KoshaState>()(persist((set, get) => ({
   assessStatus: 'idle',
   consent: DEFAULT_CONSENT,
   agreed: false,
+  idInput: {},
+  qr: { status: 'idle' },
+
+  setIdInput: (p) => set((s) => ({ idInput: { ...s.idInput, ...p }, assessment: null })),
+  scanQr: async (text) => {
+    set({ qr: { status: 'reading' } })
+    try {
+      const aadhaar = await readAadhaarQr(text)
+      set((s) => ({ qr: { status: 'done' }, idInput: { ...s.idInput, aadhaar, dob: s.idInput.dob || aadhaar.dob }, assessment: null }))
+    } catch (e) {
+      set({ qr: { status: 'error', error: (e as Error).message } })
+    }
+  },
 
   setConsent: (consent) => set({ consent }),
   setAgreed: (agreed) => set({ agreed }),
@@ -157,7 +177,7 @@ export const useKosha = create<KoshaState>()(persist((set, get) => ({
       const docs = Object.fromEntries(DOC_KINDS.filter((k) => s.docs[k].result).map((k) => [k, s.docs[k].result]))
       const interview = Object.values(s.answers).map((a) => a?.answer).filter(Boolean)
       const thumbnail = await thumbnailOf(s.docs.shopfront.files[0])
-      const a = await api.buildPassport({ profile: s.profile, docs, location: s.location.result, interview, thumbnail, consent: s.consent })
+      const a = await api.buildPassport({ profile: s.profile, docs, location: s.location.result, interview, thumbnail, consent: s.consent, identity: { ...s.idInput, sample: !!s.sampleId } })
       set({ assessment: a, assessStatus: 'done' })
       return a
     } catch (e) {
@@ -181,7 +201,7 @@ export const useKosha = create<KoshaState>()(persist((set, get) => ({
     controllers.forEach((c) => c.abort())
     controllers.clear()
     Object.values(get().docs).forEach((d) => d.urls.forEach((u) => URL.revokeObjectURL(u)))
-    set({ sampleId: null, sampleAnswers: {}, profile: EMPTY_PROFILE, docs: emptyDocs(), location: { status: 'idle' }, answers: {}, assessment: null, assessStatus: 'idle', assessError: undefined, consent: DEFAULT_CONSENT, agreed: false })
+    set({ sampleId: null, sampleAnswers: {}, profile: EMPTY_PROFILE, docs: emptyDocs(), location: { status: 'idle' }, answers: {}, assessment: null, assessStatus: 'idle', assessError: undefined, consent: DEFAULT_CONSENT, agreed: false, idInput: {}, qr: { status: 'idle' } })
   },
 
   restoreFiles: async () => {
@@ -212,6 +232,7 @@ export const useKosha = create<KoshaState>()(persist((set, get) => ({
     assessStatus: s.assessment ? 'done' : 'idle',
     consent: s.consent,
     agreed: s.agreed,
+    idInput: s.idInput,
   }) as unknown as KoshaState,
   onRehydrateStorage: () => (state) => void state?.restoreFiles(),
 }))

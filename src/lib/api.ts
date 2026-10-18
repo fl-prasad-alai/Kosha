@@ -10,7 +10,7 @@ import {
 } from 'firebase/firestore'
 import type {
   AccessEntry, Assessment, AuditEntry, AuditType, Consent, ConsentInput, Decision, DecisionStatus, DocKind, Role, User, ExtractResponse, ExtractResultMap,
-  InterviewAnswer, LenderAccount, LenderOrg, LocationResult, PassportResponse, PassportSummary, Profile, PublicPassport, QuestionId,
+  IdentityInput, IdentitySummary, InterviewAnswer, LenderAccount, LenderOrg, LenderType, LocationResult, PassportResponse, PassportSummary, Profile, PublicPassport, QuestionId,
 } from '@shared/types'
 import { areaOf, can, NO_CONSENT, orgOf, slug, type PassportResource } from '@shared/policy'
 import { auth, db } from '@/fb/firebase'
@@ -20,6 +20,7 @@ import { analyseLocation } from '@/fb/location'
 import { readAnswer } from '@/fb/interview'
 import { assess } from '@/fb/assess'
 import { speak } from '@/fb/tts'
+import { panFingerprint, validPan } from '@/fb/identity'
 
 export class ApiError extends Error {
   status: number
@@ -97,7 +98,7 @@ async function audit(actor: User | null, type: AuditType, e: { detail: string; o
 
 // ───────────────────────── Gemini steps
 
-const KINDS: DocKind[] = ['ledger', 'invoice', 'payments', 'electricity', 'shopfront']
+const KINDS: DocKind[] = ['identity', 'business', 'ledger', 'invoice', 'payments', 'electricity', 'shopfront']
 const MIME = /^(image\/(jpeg|png|webp|heic|heif)|application\/pdf|audio\/.+|video\/webm)$/
 
 async function base64(b: Blob): Promise<string> {
@@ -160,6 +161,7 @@ const PROBLEM: Record<string, string> = {
   margin: 'Unusual margin', mix: 'Unusual cash / digital mix', power: 'Power use does not fit sales', place: 'Weak location',
   located: 'Location not confirmed', discipline: 'Gaps in the ledger', credit: 'High customer credit', interview: 'Answers differ from documents',
   shopfront: 'Signboard does not match',
+  id_person: 'Identity does not match', id_business: 'Registration problem', id_place: 'ID address elsewhere', id_unique: 'PAN used by another shop',
 }
 
 const ownerOf = (a: Assessment) => a.ownerId ?? 'demo-shop'
@@ -194,6 +196,8 @@ function toPublic(a: Assessment): PublicPassport {
     currency: a.profile.currency,
     sourcesCount: a.sourcesUsed.length,
     seal: a.seal ?? '',
+    idLevel: a.identity?.person,
+    bizLevel: a.identity?.business,
   }
 }
 const publicDoc = (a: Assessment) => ({ ...toPublic(a), ownerId: ownerOf(a) })
@@ -283,6 +287,8 @@ function summary(a: Assessment, owner: boolean, decisions: Decision[], views: nu
     decision: [...decisions].sort((x, y) => y.at.localeCompare(x.at))[0] ?? null,
     thumbnail: owner ? a.thumbnail : undefined,
     ...(owner ? { consent: consentOf(a), views } : {}),
+    idLevel: a.identity?.person,
+    bizLevel: a.identity?.business,
   }
 }
 
@@ -346,15 +352,38 @@ export const buildPassport = (body: { consent: ConsentInput; [k: string]: unknow
   if (!profile?.shopName) throw new ApiError('Add the shop details first.', 400)
   if (!docs.ledger) throw new ApiError('Read at least the ledger pages before building the passport.', 400)
   const consent = await parseConsent(body.consent, false)
-  const a = await assess({ profile, ...docs, location, interview } as never, typeof thumbnail === 'string' && thumbnail.length < 400_000 ? thumbnail : undefined)
+  const idInput = (body.identity ?? {}) as IdentityInput & { sample?: boolean }
+  const pan = (idInput.pan || (docs.identity as ExtractResultMap['identity'] | undefined)?.documents.find((d) => d.kind === 'pan' && !d.tamperSigns.length)?.number || '').toUpperCase()
+  const claim = validPan(pan) && !idInput.sample ? await claimIdentity(pan, u.id) : 'none'
+  const a = await assess({ profile, ...docs, location, interview, idInput, claim } as never, typeof thumbnail === 'string' && thumbnail.length < 400_000 ? thumbnail : undefined)
   a.ownerId = u.id
   a.consent = consent
   a.seal = await sealOf({ id: a.id, score: a.score, band: a.band, status: a.offer.status, createdAt: a.createdAt })
   await setDoc(passportRef(a.id), plain(a))
   await setDoc(doc(db, 'public', a.id), plain(publicDoc(a)))
   await audit(u, 'passport_issued', { passportId: a.id, org: u.org, ownerId: u.id, detail: `Issued and shared with ${describe(consent)}` })
+  const idFails = a.checks.filter((c) => c.id.startsWith('id_') && c.status === 'fail')
+  if (idFails.length) await audit(u, 'identity_flag', { passportId: a.id, org: u.org, ownerId: u.id, detail: `${a.profile.shopName}: ${idFails.map((c) => c.title.toLowerCase()).join('; ')}` })
   return viewFor(a, u)
 })
+
+/**
+ * One identity, one shop. The PAN's one-way fingerprint is claimed by the first shop that uses it; the rules
+ * refuse a second shop, so Kosha learns "taken" without learning or storing whose PAN it is.
+ */
+async function claimIdentity(pan: string, uid: string): Promise<IdentitySummary['claim']> {
+  const ref = doc(db, 'identities', await panFingerprint(pan))
+  try {
+    const mine = await getDoc(ref)
+    if (mine.exists()) return 'own'
+  } catch { /* someone else's claim: reading it is refused */ }
+  try {
+    await setDoc(ref, { ownerId: uid, at: new Date().toISOString() })
+    return 'new'
+  } catch {
+    return 'taken'
+  }
+}
 
 export const setConsent = (id: string, input: ConsentInput) => run(async (): Promise<Assessment> => {
   const u = await needUser()
@@ -384,16 +413,17 @@ export const passportAudit = (id: string) => run(async (): Promise<AuditEntry[]>
 })
 
 const DECISIONS: DecisionStatus[] = ['approved', 'more_info', 'declined']
-export const decide = (id: string, status: DecisionStatus, rawNote: string) => run(async (): Promise<Assessment> => {
+export const decide = (id: string, status: DecisionStatus, rawNote: string, requests: string[] = []) => run(async (): Promise<Assessment> => {
   const u = await needUser()
   if (!can(u, 'passport:decide')) throw new ApiError(DENIED.shared, 403)
   if (!DECISIONS.includes(status)) throw new ApiError('Choose approve, ask for documents or decline.', 400)
   const note = String(rawNote ?? '').trim().slice(0, 600)
-  if (status !== 'approved' && note.length < 3) throw new ApiError('Add a short note so the shop knows what to do next.', 400)
+  const asks = status === 'more_info' ? [...new Set(requests.map((r) => String(r).trim().slice(0, 80)).filter(Boolean))].slice(0, 8) : []
+  if (status !== 'approved' && note.length < 3 && !asks.length) throw new ApiError('Add a short note so the shop knows what to do next.', 400)
   const before = await readFull(id)
   // Checked against this passport's consent, which the shop may have changed a moment ago.
   if (!before || !can(u, 'passport:decide', resourceOf(before))) throw new ApiError('This shop has not shared its passport with your organisation.', 403)
-  const d: Decision = { lenderId: u.id, orgId: orgOf(u), lenderName: u.name, org: u.org, status, note, at: new Date().toISOString() }
+  const d: Decision = { lenderId: u.id, orgId: orgOf(u), lenderName: u.name, org: u.org, status, note, at: new Date().toISOString(), ...(asks.length ? { requests: asks } : {}) }
   // One decision per lender organisation; a newer one from the same organisation replaces it.
   await setDoc(doc(db, 'passports', id, 'decisions', orgOf(u)), d)
   await audit(u, 'decision', { passportId: id, org: u.org, ownerId: ownerOf(before), detail: `${status === 'approved' ? 'Approved' : status === 'more_info' ? 'Asked for documents' : 'Declined'} ${before.profile.shopName}` })
@@ -428,7 +458,7 @@ export const login = (rawEmail: string, password: string) => run(async (): Promi
   }
 })
 
-export const signup = (input: { role: Role; name: string; email: string; password: string; org: string }) => run(async (): Promise<User> => {
+export const signup = (input: { role: Role; name: string; email: string; password: string; org: string; orgType?: LenderType; regNo?: string }) => run(async (): Promise<User> => {
   const role = input.role === 'lender' ? 'lender' : input.role === 'business' ? 'business' : null
   const name = (input.name ?? '').trim()
   const email = (input.email ?? '').trim().toLowerCase()
@@ -439,6 +469,8 @@ export const signup = (input: { role: Role; name: string; email: string; passwor
   if (!EMAIL.test(email)) throw new ApiError('That email address does not look right.', 400)
   if (password.length < 8) throw new ApiError('Use a password of at least 8 characters.', 400)
   if (org.length < 2) throw new ApiError(role === 'lender' ? 'Add the name of your bank or lender.' : 'Add your shop name.', 400)
+  const regNo = (input.regNo ?? '').trim().toUpperCase().slice(0, 40)
+  if (role === 'lender' && regNo.length < 4) throw new ApiError("Add your regulator's registration or licence number (for example the RBI certificate number), so Kosha can verify your organisation.", 400)
   let cred
   try {
     cred = await createUserWithEmailAndPassword(auth, email, password)
@@ -450,7 +482,7 @@ export const signup = (input: { role: Role; name: string; email: string; passwor
   const u: User = {
     id: cred.user.uid, role, name, email, org, createdAt: new Date().toISOString(),
     // New lenders see no shop data until Kosha verifies their organisation.
-    ...(role === 'lender' ? { orgId: slug(org), status: 'pending' as const } : {}),
+    ...(role === 'lender' ? { orgId: slug(org), status: 'pending' as const, orgType: input.orgType ?? 'other', regNo } : {}),
   }
   await setDoc(doc(db, 'users', u.id), plain(u))
   await audit(u, 'signup', { org, detail: `New ${role === 'lender' ? 'lender account, waiting for verification' : 'shop account'}` })
@@ -495,7 +527,7 @@ export const adminLenders = () => run(async (): Promise<LenderAccount[]> => {
   const s = await getDocs(query(collection(db, 'users'), where('role', '==', 'lender')))
   return s.docs
     .map((d) => d.data() as User)
-    .map((u) => ({ id: u.id, name: u.name, email: u.email, org: u.org, orgId: orgOf(u), status: u.status ?? 'pending', statusNote: u.statusNote, verifiedAt: u.verifiedAt, createdAt: u.createdAt, demo: u.demo }))
+    .map((u) => ({ id: u.id, name: u.name, email: u.email, org: u.org, orgId: orgOf(u), status: u.status ?? 'pending', statusNote: u.statusNote, verifiedAt: u.verifiedAt, createdAt: u.createdAt, demo: u.demo, orgType: u.orgType, regNo: u.regNo }))
     .sort((a, b) => rank[a.status] - rank[b.status] || b.createdAt.localeCompare(a.createdAt))
 })
 
@@ -508,7 +540,7 @@ export const verifyLender = (id: string, status: 'verified' | 'rejected', rawRea
   if (u.demo) throw new ApiError('The demo lender is always verified.', 409)
   if (status === 'rejected' && reason.length < 3) throw new ApiError('Add a short reason so the lender knows why.', 400)
   await updateDoc(doc(db, 'users', id), { status, statusNote: reason || deleteField(), verifiedAt: new Date().toISOString() })
-  if (status === 'verified') await setDoc(doc(db, 'orgs', orgOf(u)), { id: orgOf(u), org: u.org })
+  if (status === 'verified') await setDoc(doc(db, 'orgs', orgOf(u)), { id: orgOf(u), org: u.org, orgType: u.orgType ?? 'other', regulated: !!u.regNo })
   await audit(admin, status === 'verified' ? 'lender_verified' : 'lender_rejected', { targetId: id, org: u.org, detail: `${status === 'verified' ? 'Verified' : 'Rejected'} ${u.org} (${u.email})${reason ? `: ${reason}` : ''}` })
   orgs = null
   return adminLenders()

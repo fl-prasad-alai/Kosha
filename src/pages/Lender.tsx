@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion } from 'motion/react'
-import { ArrowRight, Hourglass, Inbox, Mail, ShieldX } from 'lucide-react'
+import { ArrowRight, Hourglass, Inbox, Mail, ShieldX, ShieldCheck, Building2 } from 'lucide-react'
 import type { PassportSummary, User } from '@shared/types'
 import { can } from '@shared/policy'
 import { listPassports } from '@/lib/api'
 import { useAuth } from '@/state/auth'
 import { GlowingBadge } from '@/components/unlumen-ui/glowing-badge'
+import { AssuranceLine, ProofBadge } from '@/components/kosha/Assurance'
 import { ErrorNote, Panel, Reading, Stat } from '@/components/kosha/ui'
 import { COUNTRIES, money } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -81,11 +82,19 @@ function Queue({ user }: { user: User }) {
   const [rows, setRows] = useState<PassportSummary[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [tab, setTab] = useState<Tab>('all')
+  // Identity filters: only govt-signed IDs, only registered businesses
+  const [onlySigned, setOnlySigned] = useState(false)
+  const [onlyRegistered, setOnlyRegistered] = useState(false)
   useEffect(() => void listPassports().then(setRows).catch((e) => setError((e as Error).message)), [])
 
   // The server sends only this organisation's decision.
   const mine = (r: PassportSummary) => r.decision
-  const shown = useMemo(() => (rows ?? []).filter((r) => (tab === 'all' ? true : tab === 'decided' ? !!mine(r) : r.status === tab && !mine(r))), [rows, tab])
+  const shown = useMemo(
+    () => (rows ?? [])
+      .filter((r) => (tab === 'all' ? true : tab === 'decided' ? !!mine(r) : r.status === tab && !mine(r)))
+      .filter((r) => (!onlySigned || r.idLevel === 'signed') && (!onlyRegistered || (r.bizLevel ?? 'none') !== 'none')),
+    [rows, tab, onlySigned, onlyRegistered],
+  )
   const count = (t: Tab) => (rows ?? []).filter((r) => (t === 'all' ? true : t === 'decided' ? !!mine(r) : r.status === t && !mine(r))).length
   const avg = rows?.length ? Math.round(rows.reduce((a, r) => a + r.score, 0) / rows.length) : 0
 
@@ -114,6 +123,9 @@ function Queue({ user }: { user: User }) {
                 <span className="relative">{label} <span className="font-mono text-xs opacity-70">{count(t)}</span></span>
               </button>
             ))}
+            <span className="mx-1 w-px shrink-0 bg-line" />
+            <button onClick={() => setOnlySigned((x) => !x)} aria-pressed={onlySigned} className={cn('inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3.5 py-2 text-sm transition', onlySigned ? 'border-jade/60 bg-jade/15 text-jade' : 'glass text-ink-2 hover:text-ink')}><ShieldCheck className="size-4" /> Govt-signed ID</button>
+            <button onClick={() => setOnlyRegistered((x) => !x)} aria-pressed={onlyRegistered} className={cn('inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3.5 py-2 text-sm transition', onlyRegistered ? 'border-jade/60 bg-jade/15 text-jade' : 'glass text-ink-2 hover:text-ink')}><Building2 className="size-4" /> Registered business</button>
           </div>
 
           {shown.length === 0 ? (
@@ -140,6 +152,7 @@ function Queue({ user }: { user: User }) {
                         {mine(r) && <span className={DECIDED[mine(r)!.status][1]}>You: {DECIDED[mine(r)!.status][0]}</span>}
                         {r.flags[0] && <span className="text-ink-3">{r.flags.slice(0, 2).join(' · ')}</span>}
                       </div>
+                      {r.idLevel && <AssuranceLine className="mt-2" idLevel={r.idLevel} bizLevel={r.bizLevel} />}
                     </Link>
                   </li>
                 ))}
@@ -152,6 +165,7 @@ function Queue({ user }: { user: User }) {
                       <th className="py-3 font-normal">Where</th>
                       <th className="py-3 text-right font-normal">Monthly sales</th>
                       <th className="py-3 pl-6 font-normal">Score</th>
+                      <th className="py-3 pl-6 font-normal">Identity</th>
                       <th className="py-3 text-right font-normal">Limit</th>
                       <th className="py-3 pl-6 font-normal">Needs a look</th>
                       <th className="px-5 py-3 font-normal">Status</th>
@@ -164,6 +178,7 @@ function Queue({ user }: { user: User }) {
                         <td className="py-3 text-ink-2">{COUNTRIES[r.country]?.flag} {r.address.split(',').slice(-2).join(',').trim()}</td>
                         <td className="py-3 text-right tabular">{money(r.monthlySales, r.currency)}</td>
                         <td className="py-3 pl-6"><span className="font-display text-lg">{r.status === 'hold' ? '—' : r.band}</span> <span className="font-mono text-xs text-ink-3">{r.score}</span></td>
+                        <td className="py-3 pl-6">{r.idLevel ? <span className="grid gap-1"><ProofBadge level={r.idLevel} />{r.bizLevel && r.bizLevel !== 'none' && <span className="text-[11px] text-ink-3">+ business registered</span>}</span> : <span className="text-xs text-ink-3">—</span>}</td>
                         <td className="py-3 text-right tabular">{r.status === 'offer' ? money(r.limit, r.currency) : '—'}</td>
                         <td className="max-w-[240px] py-3 pl-6 text-xs text-ink-2"><span className="line-clamp-2">{r.flags.length ? r.flags.join(' · ') : 'Nothing'}</span></td>
                         <td className="px-5 py-3">

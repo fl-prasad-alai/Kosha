@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { AnimatePresence, motion } from 'motion/react'
-import { BadgeCheck, Eye, FileQuestion, Loader2, ShieldAlert, ShieldCheck, XCircle } from 'lucide-react'
+import { BadgeCheck, Check, Eye, FileDown, FileQuestion, Loader2, ShieldAlert, ShieldCheck, XCircle } from 'lucide-react'
 import type { AccessEntry, Assessment, Decision, DecisionStatus, PassportResponse } from '@shared/types'
 import { can, isPublic } from '@shared/policy'
 import { decide, getPassport } from '@/lib/api'
@@ -21,17 +21,40 @@ const CHOICES: { s: DecisionStatus; label: string; Icon: typeof BadgeCheck; cls:
 ]
 const LABEL: Record<DecisionStatus, string> = { approved: 'Approved', more_info: 'Asked for documents', declined: 'Declined' }
 
+/** What a lender can ask for in one tap; the shop sees exactly this checklist. */
+const REQUESTS = [
+  'Aadhaar QR or PAN card',
+  'GST, Udyam or shop licence',
+  'Bank statement shared from the bank app',
+  'Payment history shared from the wallet app',
+  'Three more months of ledger pages',
+  'Latest electricity bill',
+  'Supplier bills for the last month',
+  'A photo of the owner at the shop',
+]
+/** Pre-tick what the passport is missing or what failed. */
+function suggested(a: Assessment): string[] {
+  const st = (id: string) => a.checks.find((c) => c.id === id)?.status
+  return [
+    ...(['missing', 'fail', undefined].includes(st('id_person')) ? [REQUESTS[0]] : []),
+    ...(['missing', 'fail', undefined].includes(st('id_business')) && a.offer.status !== 'offer' ? [REQUESTS[1]] : []),
+    ...(st('integrity') === 'fail' ? [REQUESTS[3]] : []),
+    ...(st('ontime') === 'missing' ? [REQUESTS[5]] : []),
+  ]
+}
+
 function DecisionPanel({ a, onSaved }: { a: Assessment; onSaved: (a: Assessment) => void }) {
   const user = useAuth((s) => s.user)!
   const mine = a.decisions?.find((d) => d.lenderId === user.id)
   const [status, setStatus] = useState<DecisionStatus>(mine?.status ?? (a.offer.status === 'offer' ? 'approved' : 'more_info'))
   const [note, setNote] = useState(mine?.note ?? (a.offer.status === 'hold' ? 'Please share the payment statement directly from the wallet app.' : ''))
+  const [asks, setAsks] = useState<string[]>(mine?.requests ?? suggested(a))
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
   const save = async () => {
     setBusy(true); setError(null); setSaved(false)
-    try { onSaved(await decide(a.id, status, note)); setSaved(true) } catch (e) { setError((e as Error).message) } finally { setBusy(false) }
+    try { onSaved(await decide(a.id, status, note, status === 'more_info' ? asks : [])); setSaved(true) } catch (e) { setError((e as Error).message) } finally { setBusy(false) }
   }
   return (
     <Panel className="edge-gold mb-6">
@@ -40,7 +63,10 @@ function DecisionPanel({ a, onSaved }: { a: Assessment; onSaved: (a: Assessment)
           <div className="eyebrow">Your decision · {user.org}</div>
           <h2 className="font-display mt-1 text-2xl">{mine ? `You marked this ${LABEL[mine.status].toLowerCase()}` : 'What should happen next?'}</h2>
         </div>
-        {a.offer.status === 'offer' && <span className="text-sm text-ink-2">Kosha suggests up to <b className="text-ink">{money(a.offer.limit, a.profile.currency)}</b> over {a.offer.tenureMonths} months</span>}
+        <div className="flex flex-wrap items-center gap-3">
+          {a.offer.status === 'offer' && <span className="text-sm text-ink-2">Kosha suggests up to <b className="text-ink">{money(a.offer.limit, a.profile.currency)}</b> over {a.offer.tenureMonths} months</span>}
+          <Link to={`/passport/${a.id}/kyc`} target="_blank" className="glass inline-flex min-h-10 items-center gap-1.5 rounded-full px-4 text-sm"><FileDown className="size-4" /> KYC summary</Link>
+        </div>
       </div>
       <div className="mt-4 grid gap-2 sm:grid-cols-3">
         {CHOICES.map(({ s, label, Icon, cls }) => (
@@ -49,8 +75,23 @@ function DecisionPanel({ a, onSaved }: { a: Assessment; onSaved: (a: Assessment)
           </button>
         ))}
       </div>
+      {status === 'more_info' && (
+        <div className="mt-4">
+          <div className="text-sm text-ink-2">What should the shop add? <span className="text-ink-3">They see this as a checklist.</span></div>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {REQUESTS.map((r) => {
+              const on = asks.includes(r)
+              return (
+                <button key={r} type="button" aria-pressed={on} onClick={() => setAsks((x) => (on ? x.filter((y) => y !== r) : [...x, r]))} className={cn('inline-flex min-h-9 items-center gap-1.5 rounded-full border px-3 text-sm transition', on ? 'border-amber-k/60 bg-amber-k/15 text-ink' : 'border-line text-ink-2 hover:text-ink')}>
+                  {on && <Check className="size-3.5 text-amber-k" />} {r}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
       <label className="mt-4 grid gap-1.5 text-sm">
-        <span className="text-ink-2">Note to the shop {status === 'approved' ? '(optional)' : ''}</span>
+        <span className="text-ink-2">Note to the shop {status === 'approved' || (status === 'more_info' && asks.length) ? '(optional)' : ''}</span>
         <textarea id="decision-note" rows={2} className={fieldCls} value={note} onChange={(e) => setNote(e.target.value)} placeholder={status === 'approved' ? 'For example: offer of ₹80,000 over 12 months, our officer will call you.' : 'Tell the shop what you need.'} />
       </label>
       <div className="mt-4 flex flex-wrap items-center gap-3">
@@ -107,6 +148,13 @@ function Received({ decisions }: { decisions: Decision[] }) {
             <div className="min-w-0 flex-1 text-sm">
               <div><b className="font-medium">{d.org}</b> <span className="text-ink-3">· {d.lenderName} · {new Date(d.at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span></div>
               {d.note && <p className="mt-0.5 text-ink-2">{d.note}</p>}
+              {d.requests?.length ? (
+                <div className="mt-2 rounded-xl border border-amber-k/30 bg-amber-k/8 p-3">
+                  <div className="text-xs font-medium text-amber-k">To add</div>
+                  <ul className="mt-1.5 space-y-1">{d.requests.map((r) => <li key={r} className="flex items-center gap-2"><span className="size-3.5 rounded border border-amber-k/60" />{r}</li>)}</ul>
+                  <Link to="/build" className="mt-2.5 inline-flex min-h-9 items-center rounded-full bg-gold px-4 text-xs font-semibold text-[#1b1203]">Update my passport</Link>
+                </div>
+              ) : null}
             </div>
           </li>
         ))}

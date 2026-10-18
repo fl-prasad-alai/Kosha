@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { AnimatePresence, motion } from 'motion/react'
-import { ArrowUpRight, BookOpenText, Check, CircleDashed, Loader2, MapPin, Mic, Receipt, Smartphone, Sparkles, Store, Zap } from 'lucide-react'
+import { ArrowUpRight, BookOpenText, Check, CircleDashed, Loader2, MapPin, Mic, Receipt, Smartphone, Sparkles, Store, Zap, Fingerprint, Building2 } from 'lucide-react'
 import { LANGUAGES, QUESTIONS } from '@shared/questions'
 import { useKosha, type Status } from '@/state/kosha'
 import { MagneticButton } from '@/components/unlumen-ui/magnetic-button'
@@ -44,7 +44,7 @@ export function StepPassport() {
     return (
       <>
         <StepHeader
-          eyebrow="Step 6 · The passport"
+          eyebrow="Step 7 · The passport"
           title={`${s.profile.shopName}'s credit passport`}
           sub="Issued from the shop's own records. Tap any green chip to see the exact line Gemini read."
           right={
@@ -62,11 +62,13 @@ export function StepPassport() {
   const d = s.docs
   return (
     <>
-      <StepHeader eyebrow="Step 6 · The passport" title="Ready to issue the passport" sub="Kosha combines everything it has read. Missing sources are fine; the passport says exactly what was and was not checked." />
+      <StepHeader eyebrow="Step 7 · The passport" title="Ready to issue the passport" sub="Kosha combines everything it has read. Missing sources are fine; the passport says exactly what was and was not checked." />
       <div className="grid gap-5 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
         <Panel>
           <h3 className="mb-3 font-semibold">Evidence collected</h3>
           <ul className="space-y-2">
+            <Item icon={Fingerprint} label="Your identity" status={s.idInput.aadhaar ? 'done' : d.identity.status === 'idle' && s.idInput.pan ? 'done' : d.identity.status} note={s.idInput.aadhaar ? (s.idInput.aadhaar.signed ? 'Aadhaar QR · Govt-signed' : 'Aadhaar QR') : d.identity.result ? `${d.identity.result.documents.length} ID read` : s.idInput.pan ? 'PAN typed' : 'Optional · makes the passport stronger'} />
+            <Item icon={Building2} label="Business registration" status={d.business.status === 'idle' && (s.idInput.gstin || s.idInput.udyam) ? 'done' : d.business.status} note={d.business.result ? `${d.business.result.documents.length} certificate${d.business.result.documents.length === 1 ? '' : 's'}` : s.idInput.gstin || s.idInput.udyam ? 'Number added' : 'Optional'} />
             <Item icon={Store} label="Shop details" status={s.profile.shopName && s.profile.address ? 'done' : 'idle'} note={s.profile.shopName} />
             <Item icon={BookOpenText} label="Handwritten ledger" status={d.ledger.status} note={d.ledger.result ? `${d.ledger.result.entries.length} lines read` : 'Required'} />
             <Item icon={Receipt} label="Supplier bills" status={d.invoice.status} note={d.invoice.result ? `${d.invoice.result.documents.length} bills` : 'Optional'} />

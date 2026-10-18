@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { Role, User } from '@shared/types'
+import type { LenderType, Role, User } from '@shared/types'
 import * as api from '@/lib/api'
 import { useKosha } from './kosha'
 
@@ -8,7 +8,7 @@ interface AuthState {
   ready: boolean
   load: () => Promise<void>
   login: (email: string, password: string) => Promise<User>
-  signup: (b: { role: Role; name: string; email: string; password: string; org: string }) => Promise<User>
+  signup: (b: { role: Role; name: string; email: string; password: string; org: string; orgType?: LenderType; regNo?: string }) => Promise<User>
   demo: (role: Role) => Promise<User>
   logout: () => Promise<void>
   /** Ends every session of this account, on every device. */

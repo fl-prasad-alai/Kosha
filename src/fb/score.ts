@@ -3,6 +3,7 @@
 import type {
   Check, ElectricityResult, EvidenceRef, InterviewAnswer, InvoiceResult, LedgerResult, LocationResult,
   Metrics, Offer, PaymentsResult, Pillar, Profile, ScheduleMonth, ShopfrontResult, SourceNode,
+  BusinessResult, IdentityInput, IdentityResult, IdentitySummary,
 } from '@shared/types'
 
 export interface Inputs {
@@ -14,6 +15,10 @@ export interface Inputs {
   shopfront?: ShopfrontResult
   location?: LocationResult
   interview?: InterviewAnswer[]
+  identity?: IdentityResult
+  business?: BusinessResult
+  idInput?: IdentityInput & { sample?: boolean }
+  claim?: IdentitySummary['claim']
 }
 
 export const ANNUAL_RATE = 0.24
@@ -447,7 +452,9 @@ export function computeOffer(
   score: number,
   seasonality: { month: string; multiplier: number; festival?: string }[],
 ): Offer {
-  const gateFail = checks.some((c) => c.id === 'integrity' && c.status === 'fail') || checks.some((c) => c.id === 'address' && c.status === 'fail')
+  // A failed integrity, address or identity check holds the offer whatever the score.
+  const GATES = ['integrity', 'address', 'id_person', 'id_business', 'id_unique']
+  const gateFail = checks.some((c) => GATES.includes(c.id) && c.status === 'fail')
   const emiCap = Math.max(0, 0.35 * m.surplus)
   let limit = roundUnit(i.profile.currency, Math.min(emiCap * annuity(), 1.5 * m.monthlySales))
   if (!Number.isFinite(limit) || limit < 0) limit = 0

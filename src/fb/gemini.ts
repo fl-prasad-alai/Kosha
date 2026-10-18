@@ -60,10 +60,15 @@ export async function sha256(...chunks: string[]): Promise<string> {
 }
 
 // Same key as the server version, so the baked sample results still match.
-async function cacheKey(o: CallOptions): Promise<string> {
+async function cacheKey(o: CallOptions, today?: string): Promise<string> {
   const parts = o.parts.map((p) => p.text ?? p.inlineData?.data ?? '')
+  if (today) parts[0] = parts[0].replace(TODAY, `Today is ${today}.`)
   return (await sha256(o.task, o.system, JSON.stringify(o.schema ?? null), ...parts)).slice(0, 40)
 }
+// Document prompts start with today's date, so a result baked on another day has another key.
+// The sample shops' results were baked on these days; try them too before calling Gemini.
+const TODAY = /^Today is \d{4}-\d{2}-\d{2}\./
+const BAKED_ON = ['2026-10-16', '2026-10-17', '2026-10-18']
 
 const memory = new Map<string, { data: unknown; meta: CallMeta; grounding?: unknown }>()
 const LOCAL = 'kosha-gemini:'
@@ -123,6 +128,12 @@ export async function generate<T>(o: CallOptions): Promise<CallResult<T>> {
   if (!o.noCache) {
     const hit = await readCache<T>(key)
     if (hit) return hit
+    if (TODAY.test(o.parts[0]?.text ?? '')) {
+      for (const day of BAKED_ON) {
+        const old = await readCache<T>(await cacheKey(o, day))
+        if (old) return old
+      }
+    }
   }
   if (!configured) throw new GeminiError('Gemini is not configured for this site yet.', 503)
 

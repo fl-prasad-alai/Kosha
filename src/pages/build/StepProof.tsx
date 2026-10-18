@@ -85,7 +85,7 @@ export function StepProof() {
 
   return (
     <>
-      <StepHeader eyebrow="Step 3 · Proof" title="Add the records that back up the ledger" sub="Each one is optional, but every extra source makes the passport stronger and the limit fairer. Kosha checks them against each other." />
+      <StepHeader eyebrow="Step 4 · Proof" title="Add the records that back up the ledger" sub="Each one is optional, but every extra source makes the passport stronger and the limit fairer. Kosha checks them against each other." />
       <div className="space-y-5">
         <Section kind="invoice" icon={Receipt} title="Supplier bills" why="Proves the stock buying in the ledger really happened." hint="Photos of recent wholesale bills or receipts" marks={(i) => (inv?.documents ?? []).filter((d) => d.file === i).map((d, k) => ({ id: `t${k}`, box: d.totalBox, tone: 'gold' }))}>
           {inv && (

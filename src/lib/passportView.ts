@@ -1,4 +1,4 @@
-import type { Assessment, Offer, PublicPassport } from '@shared/types'
+import type { Assessment, Offer, ProofLevel, PublicPassport } from '@shared/types'
 import { areaOf } from '@shared/policy'
 import { COUNTRIES } from './format'
 
@@ -26,6 +26,9 @@ export interface PassportView {
   monthlySales?: number
   margin?: number
   digitalShare?: number
+  /** How strongly the owner's identity and the business registration are proven (levels only). */
+  idLevel?: ProofLevel
+  bizLevel?: ProofLevel
   public: boolean
 }
 
@@ -53,6 +56,8 @@ export function fromAssessment(a: Assessment): PassportView {
     monthlySales: a.metrics.monthlySales,
     margin: a.metrics.margin,
     digitalShare: a.metrics.digitalShare,
+    idLevel: a.identity?.person,
+    bizLevel: a.identity?.business,
     public: false,
   }
 }
@@ -73,6 +78,8 @@ export function fromPublic(p: PublicPassport): PassportView {
     currency: p.currency,
     sources: p.sourcesCount,
     seal: p.seal,
+    idLevel: p.idLevel,
+    bizLevel: p.bizLevel,
     public: true,
   }
 }

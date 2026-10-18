@@ -22,7 +22,7 @@ export function StepPlace() {
   return (
     <>
       <StepHeader
-        eyebrow="Step 4 · The neighbourhood"
+        eyebrow="Step 5 · The neighbourhood"
         title="What brings customers to this shop?"
         sub="Gemini, grounded on live Google data, looks around the address for schools, offices, transport, markets and competing shops."
         right={

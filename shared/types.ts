@@ -21,13 +21,21 @@ export interface User {
   verifiedAt?: string
   createdAt: string
   demo?: boolean
+  /** Lenders only: what kind of lender, and its regulator's registration or licence number. */
+  orgType?: LenderType
+  regNo?: string
+}
+
+export type LenderType = 'bank' | 'cooperative' | 'nbfc' | 'mfi' | 'digital' | 'distributor' | 'other'
+export const LENDER_TYPES: Record<LenderType, string> = {
+  bank: 'Bank', cooperative: 'Co-operative bank', nbfc: 'NBFC', mfi: 'Microfinance institution', digital: 'Digital lender', distributor: 'Distributor / wholesaler', other: 'Other lender',
 }
 
 /** A verified lender organisation a shop can choose to share with. */
-export interface LenderOrg { id: string; org: string }
+export interface LenderOrg { id: string; org: string; orgType?: LenderType; regulated?: boolean }
 
 /** What the admin sees about a lender account (never a password hash). */
-export type LenderAccount = Pick<User, 'id' | 'name' | 'email' | 'org' | 'orgId' | 'status' | 'statusNote' | 'verifiedAt' | 'createdAt' | 'demo'>
+export type LenderAccount = Pick<User, 'id' | 'name' | 'email' | 'org' | 'orgId' | 'status' | 'statusNote' | 'verifiedAt' | 'createdAt' | 'demo' | 'orgType' | 'regNo'>
 
 // ───────────────────────── consent and access
 
@@ -47,7 +55,7 @@ export type ConsentInput = Pick<Consent, 'scope' | 'lenderIds' | 'publicShowsOff
 /** One full view of a passport by a lender. */
 export interface AccessEntry { lenderId: string; org: string; at: string }
 
-export type AuditType = 'login' | 'login_failed' | 'login_locked' | 'logout_all' | 'signup' | 'passport_issued' | 'lender_view' | 'decision' | 'consent' | 'lender_verified' | 'lender_rejected'
+export type AuditType = 'login' | 'login_failed' | 'login_locked' | 'logout_all' | 'signup' | 'passport_issued' | 'lender_view' | 'decision' | 'consent' | 'lender_verified' | 'lender_rejected' | 'identity_flag'
 export interface AuditEntry {
   id: string
   at: string
@@ -70,9 +78,11 @@ export interface Decision {
   status: DecisionStatus
   note: string
   at: string
+  /** With "ask for documents": exactly what the shop should add. */
+  requests?: string[]
 }
 
-export type DocKind = 'ledger' | 'invoice' | 'payments' | 'electricity' | 'shopfront'
+export type DocKind = 'ledger' | 'invoice' | 'payments' | 'electricity' | 'shopfront' | 'identity' | 'business'
 
 /** Gemini box format: [ymin, xmin, ymax, xmax], each scaled to 0–1000. */
 export type Box = [number, number, number, number]
@@ -188,12 +198,117 @@ export interface ShopfrontResult {
   signBox?: Box
 }
 
+// ───────────────────────── identity (who the owner is) and business registration
+
+export type IdDocKind = 'pan' | 'aadhaar' | 'voter_id' | 'driving_licence' | 'passport' | 'philsys' | 'umid' | 'ktp' | 'other'
+export interface IdentityDoc {
+  file: number
+  kind: IdDocKind
+  /** The ID number exactly as printed (Kosha masks it before storing). */
+  number: string
+  /** Name as printed, in its own script. */
+  name: string
+  /** The same name in Latin letters. */
+  nameLatin: string
+  fatherName: string
+  dob: string // YYYY-MM-DD or ''
+  gender: string
+  address: string
+  /** Marked SPECIMEN or SAMPLE on the card itself. */
+  specimen: boolean
+  tamperSigns: string[]
+  numberBox?: Box
+  nameBox?: Box
+}
+export interface IdentityResult { documents: IdentityDoc[] }
+
+export type BizDocKind = 'gst' | 'udyam' | 'udyam_assist' | 'fssai' | 'shop_establishment' | 'trade_licence' | 'dti' | 'mayors_permit' | 'bir' | 'nib' | 'other'
+export interface BusinessDoc {
+  file: number
+  kind: BizDocKind
+  number: string
+  legalName: string
+  tradeName: string
+  ownerName: string
+  address: string
+  registeredOn: string // YYYY-MM-DD or ''
+  validTill: string // YYYY-MM-DD or ''
+  statusPrinted: string
+  activity: string
+  specimen: boolean
+  tamperSigns: string[]
+  numberBox?: Box
+}
+export interface BusinessResult { documents: BusinessDoc[] }
+
+/** Facts read from the digitally signed QR code on an Aadhaar card or e-Aadhaar. */
+export interface AadhaarQr {
+  /** true: UIDAI's signature checks out; false: it does not (edited or not genuine); null: could not be checked. */
+  signed: boolean | null
+  signedBy?: string
+  version: string
+  name: string
+  dob: string // YYYY-MM-DD, or YYYY when only the year is printed
+  gender: string
+  careOf: string
+  district: string
+  state: string
+  pincode: string
+  locality: string
+  /** Last 4 digits of the Aadhaar number (the QR never carries the full number). */
+  last4: string
+  /** When UIDAI generated this QR. */
+  generatedAt: string
+  hasMobile: boolean
+  hasEmail: boolean
+}
+
+/** What the shop typed or confirmed in the identity step. */
+export interface IdentityInput {
+  pan?: string
+  dob?: string
+  gstin?: string
+  udyam?: string
+  fssai?: string
+  tin?: string
+  aadhaar?: AadhaarQr
+}
+
+/** How strongly a fact is proven, weakest first. */
+export type ProofLevel = 'none' | 'self' | 'document' | 'registry' | 'signed'
+export const PROOF_LABEL: Record<ProofLevel, string> = { none: 'Not provided', self: 'Self-declared', document: 'Read from document', registry: 'Registry-confirmed', signed: 'Govt-signed' }
+
+export interface IdentityFact {
+  id: string
+  label: string
+  /** Shown to the owner and shared lenders; ID numbers are masked. */
+  value: string
+  proof: ProofLevel
+  source: string
+  status: CheckStatus
+  note?: string
+}
+export interface IdentitySummary {
+  person: ProofLevel
+  business: ProofLevel
+  facts: IdentityFact[]
+  /** e.g. "ABCDE****F" */
+  panMasked?: string
+  aadhaarLast4?: string
+  gstin?: string
+  udyam?: string
+  /** One identity, one shop: whether this PAN already backs another shop's passport. */
+  claim?: 'new' | 'own' | 'taken' | 'none'
+}
+
 export interface ExtractResultMap {
   ledger: LedgerResult
   invoice: InvoiceResult
   payments: PaymentsResult
   electricity: ElectricityResult
   shopfront: ShopfrontResult
+  identity: IdentityResult
+  business: BusinessResult
 }
 
 export interface ExtractResponse<K extends DocKind = DocKind> {
@@ -236,7 +351,7 @@ export interface InterviewAnswer {
 // ───────────────────────── assessment
 
 export type CheckStatus = 'pass' | 'watch' | 'fail' | 'missing'
-export type SourceNode = 'ledger' | 'invoice' | 'payments' | 'electricity' | 'location' | 'interview' | 'shopfront'
+export type SourceNode = 'ledger' | 'invoice' | 'payments' | 'electricity' | 'location' | 'interview' | 'shopfront' | 'identity' | 'business'
 
 /** Points at the evidence behind a claim, e.g. {doc:'ledger', file:1, index:4}. */
 export interface EvidenceRef {
@@ -330,8 +445,10 @@ export interface Assessment {
   consent?: Consent
   /** Owner only: which lenders opened the full passport. */
   access?: AccessEntry[]
-  /** Tamper-evident code for the public facts; sent with every view, never stored. */
+  /** Tamper-evident code for the public facts, stored when the passport is issued. */
   seal?: string
+  /** Who the owner is and whether the business is registered, with how each fact was proven. */
+  identity?: IdentitySummary
 }
 
 /**
@@ -357,6 +474,9 @@ export interface PublicPassport {
   sourcesCount: number
   /** Tamper-evident code for the public facts above. */
   seal: string
+  /** Identity assurance only, never the numbers behind it. */
+  idLevel?: ProofLevel
+  bizLevel?: ProofLevel
 }
 
 export type PassportResponse = Assessment | PublicPassport
@@ -383,4 +503,6 @@ export interface PassportSummary {
   consent?: Consent
   /** Owner only: number of lender views. */
   views?: number
+  idLevel?: ProofLevel
+  bizLevel?: ProofLevel
 }

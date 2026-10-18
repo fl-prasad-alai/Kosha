@@ -143,6 +143,63 @@ const SCHEMAS: Record<DocKind, object> = {
     },
     required: ['bills'],
   },
+  identity: {
+    type: 'object',
+    properties: {
+      documents: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            file: int,
+            kind: { type: 'string', enum: ['pan', 'aadhaar', 'voter_id', 'driving_licence', 'passport', 'philsys', 'umid', 'ktp', 'other'] },
+            number: { ...str, description: 'The ID number exactly as printed, without spaces' },
+            name: { ...str, description: 'Holder name as printed, in its own script' },
+            nameLatin: { ...str, description: 'Holder name in Latin letters (transliterate if needed)' },
+            fatherName: { ...str, description: "Father's or spouse's name if printed, else ''" },
+            dob: { ...str, description: 'Date of birth YYYY-MM-DD, or YYYY if only the year is printed, else ""' },
+            gender: str,
+            address: { ...str, description: 'Address if printed, else ""' },
+            specimen: { type: 'boolean', description: 'true if the card itself is marked SPECIMEN, SAMPLE or similar' },
+            tamperSigns: { type: 'array', items: str, description: 'Signs of editing: mismatched fonts, misaligned or pasted text, photo pasted over, impossible dates. Empty if it looks genuine.' },
+            numberBox: BOX,
+            nameBox: BOX,
+          },
+          required: ['file', 'kind', 'number', 'name', 'nameLatin', 'fatherName', 'dob', 'gender', 'address', 'specimen', 'tamperSigns', 'numberBox', 'nameBox'],
+        },
+      },
+    },
+    required: ['documents'],
+  },
+  business: {
+    type: 'object',
+    properties: {
+      documents: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            file: int,
+            kind: { type: 'string', enum: ['gst', 'udyam', 'udyam_assist', 'fssai', 'shop_establishment', 'trade_licence', 'dti', 'mayors_permit', 'bir', 'nib', 'other'] },
+            number: { ...str, description: 'Registration number exactly as printed (GSTIN, Udyam number, FSSAI licence, DTI BN number…), without spaces' },
+            legalName: { ...str, description: 'Legal name of the business or proprietor' },
+            tradeName: { ...str, description: 'Trade or shop name, if different, else ""' },
+            ownerName: { ...str, description: 'Proprietor / owner name in Latin letters, if printed' },
+            address: { ...str, description: 'Principal place of business' },
+            registeredOn: { ...str, description: 'Date of registration or incorporation YYYY-MM-DD, else ""' },
+            validTill: { ...str, description: 'Expiry date YYYY-MM-DD, else ""' },
+            statusPrinted: { ...str, description: 'Registration status if printed, e.g. Active, Cancelled' },
+            activity: { ...str, description: 'Business activity or NIC description, short' },
+            specimen: { type: 'boolean', description: 'true if marked SPECIMEN, SAMPLE or similar' },
+            tamperSigns: { type: 'array', items: str, description: 'Signs of editing. Empty if it looks genuine.' },
+            numberBox: BOX,
+          },
+          required: ['file', 'kind', 'number', 'legalName', 'tradeName', 'ownerName', 'address', 'registeredOn', 'validTill', 'statusPrinted', 'activity', 'specimen', 'tamperSigns', 'numberBox'],
+        },
+      },
+    },
+    required: ['documents'],
+  },
   shopfront: {
     type: 'object',
     properties: {
@@ -175,6 +232,8 @@ Give each entry a tight box around its whole row. Count struck-out corrections.`
   payments: `These are digital payment records for the shop: either a merchant collection statement (bank, UPI, QRIS) or app screenshots of an e-wallet history. Work out money received per day.
 Look hard for tampering: digits in a heavier or different font, misaligned rows, a running balance that does not carry over between consecutive screenshots, totals that do not add up. A flagged row's box must tightly enclose that row.`,
   electricity: `These are electricity bills for the shop's premises. Return one entry per bill. paidOnTime refers to the previous bill, shown as "last payment received" (or a PAID stamp), compared with that previous bill's due date when both are visible.`,
+  identity: `These are photos of the shop owner's identity documents (PAN card, Aadhaar, voter ID, driving licence, PhilSys, KTP…). Return one document per card. Read the number, name and date of birth exactly; give the name in Latin letters too. Note any sign of editing.`,
+  business: `These are photos of the shop's business registration documents (GST certificate, Udyam or Udyam Assist certificate, FSSAI licence, shop & establishment or trade licence, DTI or mayor's permit, NIB…). Return one document per certificate with the registration number, names, address and dates exactly as printed.`,
   shopfront: `This is a photo of the shop from outside. Read the signboard, compare it with the declared shop name, and describe what a loan officer would notice.`,
 }
 
@@ -250,6 +309,12 @@ function normalise<K extends DocKind>(kind: K, d: ExtractResultMap[K], count: nu
   } else if (kind === 'electricity') {
     const r = any as unknown as ExtractResultMap['electricity']
     r.bills = (r.bills ?? []).map((x) => ({ ...x, file: clampFile(x.file, count), units: n(x.units), amount: n(x.amount), unitsBox: box(x.unitsBox) }))
+  } else if (kind === 'identity') {
+    const r = any as unknown as ExtractResultMap['identity']
+    r.documents = (r.documents ?? []).map((x) => ({ ...x, file: clampFile(x.file, count), number: String(x.number ?? '').replace(/\s+/g, '').toUpperCase(), tamperSigns: x.tamperSigns ?? [], numberBox: box(x.numberBox), nameBox: box(x.nameBox) }))
+  } else if (kind === 'business') {
+    const r = any as unknown as ExtractResultMap['business']
+    r.documents = (r.documents ?? []).map((x) => ({ ...x, file: clampFile(x.file, count), number: String(x.number ?? '').replace(/\s+/g, '').toUpperCase(), tamperSigns: x.tamperSigns ?? [], numberBox: box(x.numberBox) }))
   } else if (kind === 'shopfront') {
     const r = any as unknown as ExtractResultMap['shopfront']
     r.signBox = box(r.signBox)

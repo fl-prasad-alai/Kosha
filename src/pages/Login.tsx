@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 import { AnimatePresence, motion } from 'motion/react'
 import { ArrowRight, Eye, EyeOff, Landmark, Loader2, ShieldCheck, Store } from 'lucide-react'
-import type { Role } from '@shared/types'
+import type { LenderType, Role } from '@shared/types'
+import { LENDER_TYPES } from '@shared/types'
 import { AuthScene } from '@/components/kosha/AuthScene'
 import { fieldCls } from '@/components/kosha/ui'
 import { homeFor, useAuth } from '@/state/auth'
@@ -16,7 +17,8 @@ export default function Login() {
   const auth = useAuth()
   const [mode, setMode] = useState<'signin' | 'signup'>(params.get('mode') === 'signup' ? 'signup' : 'signin')
   const [role, setRole] = useState<Role>(params.get('role') === 'lender' ? 'lender' : 'business')
-  const [form, setForm] = useState({ name: '', org: '', email: '', password: '' })
+  const [form, setForm] = useState({ name: '', org: '', email: '', password: '', regNo: '' })
+  const [orgType, setOrgType] = useState<LenderType>('nbfc')
   const [show, setShow] = useState(false)
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -25,13 +27,14 @@ export default function Login() {
   if (auth.ready && auth.user && !params.get('switch')) return <Navigate to={next && next.startsWith('/') ? next : homeFor(auth.user)} replace />
   const done = (u: Parameters<typeof homeFor>[0]) => nav(next && next.startsWith('/') ? next : homeFor(u), { replace: true })
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, [k]: e.target.value })
+  const regHint: Record<LenderType, string> = { bank: 'RBI licence number', cooperative: 'RBI / Registrar of Co-operatives number', nbfc: 'RBI certificate of registration (e.g. N-13.02345)', mfi: 'RBI NBFC-MFI registration', digital: 'Partner NBFC or bank registration', distributor: 'GSTIN of your company', other: 'Regulator registration or licence number' }
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
     setBusy('form')
     try {
-      done(mode === 'signin' ? await auth.login(form.email, form.password) : await auth.signup({ role, ...form }))
+      done(mode === 'signin' ? await auth.login(form.email, form.password) : await auth.signup({ role, ...form, ...(role === 'lender' ? { orgType } : { regNo: '' }) }))
     } catch (err) {
       setError((err as Error).message)
     } finally {
@@ -106,6 +109,21 @@ export default function Login() {
                     <span className="text-ink-2">{role === 'lender' ? 'Bank or lender' : 'Shop name'}</span>
                     <input id="org" autoComplete="organization" className={fieldCls} value={form.org} onChange={set('org')} placeholder={role === 'lender' ? 'Pune Merchants Bank' : 'Sharma General Store'} />
                   </label>
+                  {role === 'lender' && (
+                    <>
+                      <label className="grid gap-1.5 text-sm">
+                        <span className="text-ink-2">Type of lender</span>
+                        <select id="orgType" className={fieldCls} value={orgType} onChange={(e) => setOrgType(e.target.value as LenderType)}>
+                          {Object.entries(LENDER_TYPES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                        </select>
+                      </label>
+                      <label className="grid gap-1.5 text-sm">
+                        <span className="text-ink-2">Registration or licence number</span>
+                        <input id="regNo" className={fieldCls} value={form.regNo} onChange={set('regNo')} placeholder={regHint[orgType]} />
+                      </label>
+                      <p className="text-xs text-ink-3 sm:col-span-2">Kosha checks this and your work email before your organisation sees any shop data. Shops see "Regulated · {LENDER_TYPES[orgType]}" when they choose whom to share with.</p>
+                    </>
+                  )}
                 </div>
               </motion.div>
             )}
