@@ -98,6 +98,53 @@
     "credit": "May mga suki po na nag-uutang, mga 1,700 pesos lahat-lahat ngayon. Nagbabayad naman po sila pag sweldo.",
     "purpose": "Gusto ko pong bumili ng chest freezer para sa ice candy at frozen goods, mga 18,000 pesos, tapos dagdag stock para sa Pasko. Siguro mga 2,500 pesos po ang dagdag kita ko kada buwan."
    }
+  },
+  {
+   "id": "shopC",
+   "country": "IN",
+   "language": "hi",
+   "currency": "INR",
+   "shopName": "Verma Kirana & Dairy",
+   "ownerName": "Ramesh Verma",
+   "address": "12, Sanchar Nagar Main Road, Indore, Madhya Pradesh 452006",
+   "shopType": "Kirana (general store)",
+   "since": 2016,
+   "docs": {
+    "ledger": [
+     "shopC/ledger-1.jpg",
+     "shopC/ledger-2.jpg",
+     "shopC/ledger-3.jpg"
+    ],
+    "invoice": [
+     "shopC/invoice-1.jpg",
+     "shopC/invoice-2.jpg",
+     "shopC/invoice-3.jpg"
+    ],
+    "payments": [
+     "shopC/upi-statement.jpg"
+    ],
+    "electricity": [
+     "shopC/electricity-1.jpg",
+     "shopC/electricity-2.jpg",
+     "shopC/electricity-3.jpg"
+    ],
+    "shopfront": [
+     "shopC/shopfront.jpg"
+    ]
+   },
+   "handDocs": {
+    "pan": "shopC/pan-card.jpg",
+    "aadhaar": "shopC/aadhaar-card.jpg",
+    "business": "shopC/udyam-assist-certificate.jpg",
+    "wrong": "shopC/electricity-1.jpg"
+   },
+   "interview": {
+    "years": "दुकान 2016 से चल रही है, करीब दस साल। सांचार नगर में सब हमें जानते हैं।",
+    "suppliers": "राशन का माल जैन प्रोविज़न स्टोर्स से सोमवार और गुरुवार को आता है। दूध, दही, पनीर हर शनिवार मालवा डेयरी एजेंसी से।",
+    "busy": "सुबह-शाम दूध के समय सबसे ज़्यादा भीड़ रहती है। नवरात्रि और दिवाली में बिक्री बढ़ जाती है।",
+    "credit": "कुछ पुराने ग्राहकों को उधार देते हैं। अभी करीब सत्रह सौ रुपये बाकी हैं, महीने में लौटा देते हैं।",
+    "purpose": "दूध-पनीर के लिए एक बड़ा डीप फ़्रीज़र लेना है, करीब 38 हज़ार का। इससे दूध खराब नहीं होगा और महीने में करीब 5 हज़ार रुपये ज़्यादा बचेंगे।"
+   }
   }
  ]
 }

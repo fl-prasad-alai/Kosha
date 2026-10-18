@@ -5,6 +5,8 @@ export interface SampleShop {
   profile: Profile
   docs: Partial<Record<DocKind, string[]>>
   interview: Partial<Record<QuestionId, string>>
+  /** Identity documents the owner adds by hand in the walkthrough (not loaded automatically). */
+  handDocs?: { pan?: string; aadhaar?: string; business?: string; wrong?: string }
 }
 
 interface Manifest {
@@ -13,6 +15,7 @@ interface Manifest {
     currency?: string
     docs: Partial<Record<DocKind, string[]>>
     interview: Partial<Record<QuestionId, string>>
+    handDocs?: SampleShop['handDocs']
   })[]
 }
 
@@ -28,6 +31,7 @@ export function loadSamples(): Promise<SampleShop[]> {
         id: s.id,
         docs: s.docs,
         interview: s.interview,
+        handDocs: s.handDocs,
         profile: {
           shopName: s.shopName,
           ownerName: s.ownerName,

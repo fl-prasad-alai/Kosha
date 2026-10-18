@@ -17,6 +17,7 @@ const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 fs.mkdirSync(BUILD, { recursive: true });
 fs.mkdirSync(path.join(OUT, 'shopA'), { recursive: true });
 fs.mkdirSync(path.join(OUT, 'shopB'), { recursive: true });
+fs.mkdirSync(path.join(OUT, 'shopC'), { recursive: true });
 
 const sum = M.sum;
 const inr = (n) => n.toLocaleString('en-IN');
@@ -129,6 +130,17 @@ const B_ledgers = M.B_pages.map((p, i) => ({
   }),
 }));
 
+const C_ledgers = M.C_pages.map((p, i) => ({
+  file: p.file, W: 1000, H: 1400,
+  html: ledgerHtml({
+    rows: p.rows, shop: 'वर्मा किराना एवं डेयरी — खाता', title: p.title, cols: ['तारीख', 'विवरण', 'रकम (₹)'],
+    fmtAmt: (n) => String(n) + '/-',
+    fmtDate: (s) => { const d = M.D(s); return `${d.getUTCDate()}/${d.getUTCMonth() + 1}`; },
+    font: "'Kalam', cursive", fontSize: 25, seed: 51 + i, lang: 'hi', descMax: 34,
+    rot: [0.9, -1.1, 0.5][i], tilt: [1.3, 1.8, 1.1][i], light: ['35% 22%', '62% 18%', '45% 28%'][i],
+  }),
+}));
+
 /* ---------------------------- India invoices ---------------------------- */
 function wordsIN(n) {
   const a = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
@@ -144,8 +156,14 @@ const SUPPLIERS_A = {
   agarwal: { name: 'AGARWAL TRADERS', sub: 'Wholesale Grains, Pulses & Edible Oils', addr: 'Shop No. 27, Market Yard, Gultekdi, Pune 411037', gst: '27ABCDE1234F1Z5', terms: 'Credit 15 days', color: '#7a1f1f', sign: 'R. Agarwal' },
   mahalaxmi: { name: 'MAHALAXMI DISTRIBUTORS', sub: 'FMCG & Provision Distributors', addr: '512, Bhawani Peth, Pune 411042', gst: '27PQRSX5678K1Z2', terms: 'Paid – Cash', color: '#14532d', sign: 'S. Kulkarni' },
 };
-function invoiceA(inv, i) {
-  const s = SUPPLIERS_A[inv.supplier];
+const SUPPLIERS_C = {
+  jain: { name: 'JAIN PROVISION STORES', sub: 'Wholesale Grocery & Provisions', addr: '41, Siyaganj Main Road, Indore 452007', gst: '23ABCFJ4521M1Z8', terms: 'Credit 10 days', color: '#1e3a8a', sign: 'A. Jain' },
+  malwa: { name: 'MALWA DAIRY AGENCY', sub: 'Milk, Curd & Dairy Products Distributor', addr: '7, Navlakha Square, Indore 452001', gst: '23PQRSM7788N1Z3', terms: 'Paid – UPI', color: '#065f46', sign: 'V. Patel' },
+}
+const SHOP_A = { suppliers: SUPPLIERS_A, buyer: 'Sharma General Store', buyerAddr: 'Shop 4, Karve Road, Kothrud, Pune 411038', state: 'Maharashtra (27)', city: 'Pune' }
+const SHOP_C = { suppliers: SUPPLIERS_C, buyer: 'Verma Kirana &amp; Dairy', buyerAddr: '12, Sanchar Nagar Main Road, Indore 452006', state: 'Madhya Pradesh (23)', city: 'Indore' }
+function invoiceA(inv, i, cfg = SHOP_A) {
+  const s = cfg.suppliers[inv.supplier];
   const rows = inv.items.map((it, k) => `<tr><td>${k + 1}</td><td class="l">${it[0]}</td><td>${it[1]}</td><td>${it[2]}</td><td>${it[3]}</td><td class="r">${inr2(it[4])}</td><td class="r">${inr2(it[2] * it[4])}</td></tr>`).join('');
   const css = `
   .doc{position:absolute;inset:0;padding:46px 52px;color:#1d1d1d;font-family:Inter,sans-serif;z-index:20}
@@ -172,18 +190,18 @@ function invoiceA(inv, i) {
   .note{font-size:12px;color:#444;margin-top:8px}
   `;
   const inner = `<div class="doc">
-   <div class="top"><div><div class="nm">${s.name}</div><div class="sub">${s.sub}</div><div class="ad">${s.addr}</div><div class="ad">GSTIN: <b>${s.gst}</b> &nbsp;·&nbsp; State: Maharashtra (27)</div></div>
+   <div class="top"><div><div class="nm">${s.name}</div><div class="sub">${s.sub}</div><div class="ad">${s.addr}</div><div class="ad">GSTIN: <b>${s.gst}</b> &nbsp;·&nbsp; State: ${cfg.state}</div></div>
      <div class="ti"><b>TAX INVOICE</b>Original for Recipient</div></div>
-   <div class="meta"><div><div class="k">Bill to</div><b>Sharma General Store</b><br>Shop 4, Karve Road, Kothrud, Pune 411038<br>GSTIN: Unregistered</div>
+   <div class="meta"><div><div class="k">Bill to</div><b>${cfg.buyer}</b><br>${cfg.buyerAddr}<br>GSTIN: Unregistered</div>
      <div><div class="k">Invoice No.</div><b>${inv.no}</b><div class="k" style="margin-top:8px">Invoice Date</div><b>${dmy(inv.date)}</b></div></div>
    <table><tr><th>#</th><th>Description of Goods</th><th>HSN</th><th>Qty</th><th>Unit</th><th>Rate (₹)</th><th>Amount (₹)</th></tr>
    ${rows}<tr class="fill"><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
    <tr class="tot"><td></td><td class="l">TOTAL</td><td></td><td></td><td></td><td></td><td class="r">₹ ${inr2(inv.total)}</td></tr></table>
    <div class="note">All rates inclusive of applicable GST. Round off: 0.00</div>
    <div class="words"><b>Amount in words:</b> Rupees ${wordsIN(inv.total)} Only</div>
-   <div class="bottom"><div>Payment terms:<br><span class="terms">${s.terms}</span><div class="note">Goods once sold will not be taken back. Subject to Pune jurisdiction.</div></div>
+   <div class="bottom"><div>Payment terms:<br><span class="terms">${s.terms}</span><div class="note">Goods once sold will not be taken back. Subject to ${cfg.city} jurisdiction.</div></div>
    <div class="sig">For ${s.name.replace(/\b(\w)(\w*)/g, (m, a, b) => a + b.toLowerCase())}<br><span class="s">${s.sign}</span><br>Authorised Signatory</div></div>
-   </div><div class="stamp">${s.name}<br>PUNE</div><div class="sample">${SAMPLE}</div>`;
+   </div><div class="stamp">${s.name}<br>${cfg.city.toUpperCase()}</div><div class="sample">${SAMPLE}</div>`;
   return photo({ W: 1000, H: 1400, pw: 880, ph: 1245, rot: [0.9, -1.4, 1.6, -0.7][i], tilt: [1.2, 2, 1.5, 1][i], table: ['grey', 'wood', 'cloth', 'grey'][i], paper: '#f7f5ef', inner, css, light: ['30% 20%', '70% 30%', '40% 25%', '60% 15%'][i] });
 }
 
@@ -233,8 +251,10 @@ function invoiceB(inv, i) {
 }
 
 /* ---------------------------- UPI statement ---------------------------- */
-function upiStatement() {
-  const rows = M.A_upi;
+const UPI_A = { rows: () => M.A_upi, logo: 'PMC', bank: 'Pune Merchants Co-operative Bank Ltd.', branch: 'Kothrud Branch, Paud Road, Pune 411038', merchant: 'SHARMA GENERAL STORE', vpa: 'sharmagenstore@pmcb', acct: 'XXXXXX4417', addr: 'Shop 4, Karve Road, Kothrud, Pune 411038', payers: 412, repeat: '71%' }
+const UPI_C = { rows: () => M.C_upi, logo: 'MUC', bank: 'Malwa Urban Co-operative Bank Ltd.', branch: 'Sanchar Nagar Branch, Indore 452006', merchant: 'VERMA KIRANA &amp; DAIRY', vpa: 'vermakirana@mucb', acct: 'XXXXXX2290', addr: '12, Sanchar Nagar Main Road, Indore 452006', payers: 318, repeat: '76%' }
+function upiStatement(u = UPI_A) {
+  const rows = u.rows();
   const tot = sum(rows.map((x) => x.amt)), cnt = sum(rows.map((x) => x.count));
   const tr = rows.map((x) => { const d = M.D(x.date); return `<tr${x.we ? ' class="we"' : ''}><td>${dMonY(x.date)}</td><td>${DOW[d.getUTCDay()]}</td><td class="c">${x.count}</td><td class="r">${inr2(x.amt)}</td></tr>`; }).join('');
   const css = `
@@ -257,21 +277,23 @@ function upiStatement() {
   .ft{margin-top:12px;font-size:11.5px;color:#555;line-height:1.45}
   `;
   const inner = `<div class="doc">
-   <div class="bh"><div class="logo">PMC</div><div><div class="bn">Pune Merchants Co-operative Bank Ltd.</div><div class="bs">Kothrud Branch, Paud Road, Pune 411038</div></div></div>
+   <div class="bh"><div class="logo">${u.logo}</div><div><div class="bn">${u.bank}</div><div class="bs">${u.branch}</div></div></div>
    <h1>UPI Merchant Collections Statement</h1>
-   <div class="mi"><div><span>Merchant name:</span> <b>SHARMA GENERAL STORE</b></div><div><span>Statement period:</span> <b>13 Sep 2026 – 12 Oct 2026</b></div>
-     <div><span>UPI ID:</span> <b>sharmagenstore@pmcb</b></div><div><span>Settlement A/c:</span> <b>XXXXXX4417</b></div>
-     <div><span>Address:</span> Shop 4, Karve Road, Kothrud, Pune 411038</div><div><span>Generated on:</span> 13 Oct 2026, 09:14</div></div>
+   <div class="mi"><div><span>Merchant name:</span> <b>${u.merchant}</b></div><div><span>Statement period:</span> <b>13 Sep 2026 – 12 Oct 2026</b></div>
+     <div><span>UPI ID:</span> <b>${u.vpa}</b></div><div><span>Settlement A/c:</span> <b>${u.acct}</b></div>
+     <div><span>Address:</span> ${u.addr}</div><div><span>Generated on:</span> 13 Oct 2026, 09:14</div></div>
    <table><tr><th>Date</th><th>Day</th><th class="c">No. of payments</th><th class="r">Amount received (₹)</th></tr>${tr}
    <tr class="t"><td>Total (30 days)</td><td></td><td class="c">${cnt}</td><td class="r">${inr2(tot)}</td></tr></table>
-   <div class="sb"><div>Total received<b>₹${inr2(tot)}</b></div><div>Total payments<b>${cnt}</b></div><div>Unique payers<b>412</b></div><div>Repeat payers<b>71%</b></div></div>
+   <div class="sb"><div>Total received<b>₹${inr2(tot)}</b></div><div>Total payments<b>${cnt}</b></div><div>Unique payers<b>${u.payers}</b></div><div>Repeat payers<b>${u.repeat}</b></div></div>
    <div class="ft">Average per day: ₹${inr2(tot / 30)}. Amounts are credited to the settlement account on T+0. This is a computer-generated statement and does not require a signature.</div>
    </div><div class="sample">${SAMPLE}</div>`;
   return photo({ W: 1000, H: 1600, pw: 900, ph: 1500, rot: -0.7, tilt: 1.4, table: 'grey', paper: '#fafaf7', inner, css, light: '35% 18%' });
 }
 
 /* ---------------------------- India electricity ---------------------------- */
-function elecA(b, i) {
+const ELEC_A = { util: 'Pune Power Distribution Co.', sub: 'Kothrud Sub-Division, Pune', consumer: 'SUNITA SHARMA (SHARMA GENERAL STORE)', no: '170023456781', addr: 'Shop 4, Karve Road, Kothrud, Pune 411038' }
+const ELEC_C = { util: 'Malwa Power Distribution Co.', sub: 'Sanchar Nagar Zone, Indore', consumer: 'RAMESH VERMA (VERMA KIRANA &amp; DAIRY)', no: '230045671129', addr: '12, Sanchar Nagar Main Road, Indore 452006' }
+function elecA(b, i, e = ELEC_A) {
   const lines = [['Fixed / Demand Charges', '', b.fixed], ['Energy Charges', `${b.kwh} kWh × 8.20`, b.energy], ['Wheeling Charges', `${b.kwh} kWh × 1.17`, b.wheeling],
     ['Electricity Duty (12%)', '', b.duty], ['Fuel Adjustment Charge', '', b.fac]];
   const css = `
@@ -296,10 +318,10 @@ function elecA(b, i) {
   .ft{position:absolute;left:44px;right:44px;bottom:40px;font-size:11.5px;color:#555;border-top:1px solid #aaa;padding-top:8px}
   `;
   const inner = `<div class="doc">
-   <div class="bh"><div style="display:flex;align-items:center"><div class="bolt">ϟ</div><div><div class="n">Pune Power Distribution Co.</div><div class="s">Kothrud Sub-Division, Pune</div></div></div><div style="text-align:right;font-size:14px">ELECTRICITY BILL<br><b style="font-size:18px">${b.month}</b></div></div>
+   <div class="bh"><div style="display:flex;align-items:center"><div class="bolt">ϟ</div><div><div class="n">${e.util}</div><div class="s">${e.sub}</div></div></div><div style="text-align:right;font-size:14px">ELECTRICITY BILL<br><b style="font-size:18px">${b.month}</b></div></div>
    <div class="t">CONSUMER DETAILS</div>
-   <div class="g"><div><span>Consumer name</span><b>SUNITA SHARMA (SHARMA GENERAL STORE)</b></div><div><span>Consumer No.</span><b>170023456781</b></div>
-   <div><span>Service address</span>Shop 4, Karve Road, Kothrud, Pune 411038</div><div><span>Tariff</span><b>LT-II Commercial</b> · Sanctioned load 4 kW</div>
+   <div class="g"><div><span>Consumer name</span><b>${e.consumer}</b></div><div><span>Consumer No.</span><b>${e.no}</b></div>
+   <div><span>Service address</span>${e.addr}</div><div><span>Tariff</span><b>LT-II Commercial</b> · Sanctioned load 4 kW</div>
    <div><span>Bill No.</span>${b.billNo}</div><div><span>Billing period</span>${b.period}</div>
    <div><span>Meter reading (prev → current)</span>${b.prev} → ${b.prev + b.kwh}</div><div><span>Units consumed</span><b>${b.kwh} kWh</b></div></div>
    <div class="due"><div>Bill date<b>${b.billDate}</b></div><div>Due date<b>${b.due}</b></div><div>Amount payable<b>₹${inr2(b.total)}</b></div></div>
@@ -412,6 +434,11 @@ const jobs = [
   ...M.B_wallet.map((s, k) => { const w = wallet(s, k); return { file: s.file, html: w.html, W: 720, H: w.H }; }),
   ...M.B_elec.map((b, i) => ({ file: b.file, html: elecB(b, i), W: 1000, H: 1400 })),
   { file: 'shopB/shopfront.jpg', html: shopfrontB(FONTS, SAMPLE), W: 1280, H: 860 },
+  ...C_ledgers,
+  ...M.C_invoices.map((inv, i) => ({ file: inv.file, html: invoiceA(inv, i, SHOP_C), W: 1000, H: 1400 })),
+  { file: 'shopC/upi-statement.jpg', html: upiStatement(UPI_C), W: 1000, H: 1600 },
+  ...M.C_elec.map((b, i) => ({ file: b.file, html: elecA(b, i, ELEC_C), W: 1000, H: 1400 })),
+  { file: 'shopC/shopfront.jpg', html: shopfrontA(FONTS, SAMPLE, { hi: 'वर्मा किराना', en: 'VERMA KIRANA & DAIRY', seed: 808, upi: 'vermakirana@mucb' }), W: 1280, H: 860 },
 ];
 
 const run = (cmd, args, timeout = 90000) => new Promise((res, rej) => execFile(cmd, args, { timeout }, (err, so, se) => (err ? rej(new Error(err.message + se)) : res(so))));
@@ -571,6 +598,7 @@ const manifest = {
       docs: {
         ledger: M.A_pages.map((p) => p.file), invoice: M.A_invoices.map((i) => i.file),
         payments: ['shopA/upi-statement.jpg'], electricity: M.A_elec.map((b) => b.file), shopfront: ['shopA/shopfront.jpg'],
+        identity: ['shopA/pan-card.jpg'], business: ['shopA/gst-certificate.jpg', 'shopA/udyam-certificate.jpg'],
       },
       interview: {
         years: 'हमारी दुकान 2015 से चल रही है, यानी करीब 11 साल हो गए। कोथरूड में सब लोग हमें जानते हैं।',
@@ -586,6 +614,7 @@ const manifest = {
       docs: {
         ledger: M.B_pages.map((p) => p.file), invoice: M.B_invoices.map((i) => i.file),
         payments: M.B_wallet.map((s) => s.file), electricity: M.B_elec.map((b) => b.file), shopfront: ['shopB/shopfront.jpg'],
+        identity: ['shopB/philsys-id.jpg'], business: ['shopB/dti-certificate.jpg'],
       },
       interview: {
         years: 'Nagsimula po ako noong 2023, kaya mga 3 years na po itong tindahan.',
@@ -593,6 +622,23 @@ const manifest = {
         busy: 'Pinakamalakas po kapag weekend at tuwing sweldo, mga 15 at 30. Tapos sobrang lakas po pag Christmas season.',
         credit: 'May mga suki po na nag-uutang, mga 1,700 pesos lahat-lahat ngayon. Nagbabayad naman po sila pag sweldo.',
         purpose: 'Gusto ko pong bumili ng chest freezer para sa ice candy at frozen goods, mga 18,000 pesos, tapos dagdag stock para sa Pasko. Siguro mga 2,500 pesos po ang dagdag kita ko kada buwan.',
+      },
+    },
+    {
+      id: 'shopC', country: 'IN', language: 'hi', currency: 'INR', shopName: 'Verma Kirana & Dairy', ownerName: 'Ramesh Verma',
+      address: '12, Sanchar Nagar Main Road, Indore, Madhya Pradesh 452006', shopType: 'Kirana (general store)', since: 2016,
+      // The owner adds who he is by hand, to show the identity step: these are offered, not loaded.
+      docs: {
+        ledger: M.C_pages.map((p) => p.file), invoice: M.C_invoices.map((i) => i.file),
+        payments: ['shopC/upi-statement.jpg'], electricity: M.C_elec.map((b) => b.file), shopfront: ['shopC/shopfront.jpg'],
+      },
+      handDocs: { pan: 'shopC/pan-card.jpg', aadhaar: 'shopC/aadhaar-card.jpg', business: 'shopC/udyam-assist-certificate.jpg', wrong: 'shopC/electricity-1.jpg' },
+      interview: {
+        years: 'दुकान 2016 से चल रही है, करीब दस साल। सांचार नगर में सब हमें जानते हैं।',
+        suppliers: 'राशन का माल जैन प्रोविज़न स्टोर्स से सोमवार और गुरुवार को आता है। दूध, दही, पनीर हर शनिवार मालवा डेयरी एजेंसी से।',
+        busy: 'सुबह-शाम दूध के समय सबसे ज़्यादा भीड़ रहती है। नवरात्रि और दिवाली में बिक्री बढ़ जाती है।',
+        credit: 'कुछ पुराने ग्राहकों को उधार देते हैं। अभी करीब सत्रह सौ रुपये बाकी हैं, महीने में लौटा देते हैं।',
+        purpose: 'दूध-पनीर के लिए एक बड़ा डीप फ़्रीज़र लेना है, करीब 38 हज़ार का। इससे दूध खराब नहीं होगा और महीने में करीब 5 हज़ार रुपये ज़्यादा बचेंगे।',
       },
     },
   ],

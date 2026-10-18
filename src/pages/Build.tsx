@@ -45,9 +45,10 @@ export default function Build() {
 
   // Sample shops arrive with the profile filled in, so start on the ledger.
   const SHOP = 1
+  // (unless the sample's owner adds his identity by hand: then start at "Who you are")
   useEffect(() => {
-    if (s.sampleId) setStep((x) => (x <= SHOP ? SHOP + 1 : x))
-  }, [s.sampleId])
+    if (s.sampleId && !s.sampleByHand) setStep((x) => (x <= SHOP ? SHOP + 1 : x))
+  }, [s.sampleId, s.sampleByHand])
 
   useEffect(() => window.scrollTo({ top: 0, behavior: 'smooth' }), [step])
 

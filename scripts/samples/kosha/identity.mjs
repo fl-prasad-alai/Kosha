@@ -81,9 +81,54 @@ const DOCS = [
   },
 ]
 
+// Shop C: the owner uploads these himself in the walkthrough
+DOCS.push(
+  {
+    file: 'shopC/pan-card.jpg', w: 860, h: 540,
+    html: `<div class="card" style="width:860px;height:540px;border-radius:26px;background:linear-gradient(135deg,#dbe9f7,#f5f9fd 55%,#d8e6f3);padding:34px 40px">
+      <div style="display:flex;justify-content:space-between;align-items:center"><div style="font:700 22px Arial;color:#1d3c6e">PERMANENT ACCOUNT NUMBER CARD</div><div style="font:600 14px Arial;color:#1d3c6e">Sample · Kosha</div></div>
+      <div style="display:flex;gap:34px;margin-top:34px">
+        <div style="width:150px;height:185px;border-radius:12px;background:linear-gradient(#c8d3df,#a9b7c6);display:grid;place-items:center;font:600 14px Arial;color:#566">PHOTO</div>
+        <div style="display:grid;gap:16px">
+          <div><div class="lbl">Permanent Account Number</div><div class="val" style="font-size:36px;letter-spacing:.12em">ABCPV4321Q</div></div>
+          <div><div class="lbl">Name</div><div class="val">RAMESH VERMA</div></div>
+          <div><div class="lbl">Father's Name</div><div class="val">SURESH CHANDRA VERMA</div></div>
+          <div><div class="lbl">Date of Birth</div><div class="val">15/08/1979</div></div>
+        </div>
+      </div>
+      <div class="foot">Fictional sample document for the Kosha demo. Not issued by any authority.</div>${stamp}</div>`,
+  },
+  {
+    file: 'shopC/aadhaar-card.jpg', w: 860, h: 540,
+    html: `<div class="card" style="width:860px;height:540px;border-radius:26px;background:linear-gradient(135deg,#fff7ec,#ffffff 50%,#eaf6ee);padding:34px 40px">
+      <div style="display:flex;justify-content:space-between;align-items:center"><div style="font:700 22px Arial;color:#7a3e00">AADHAAR · IDENTITY CARD (sample layout)</div><div style="font:600 14px Arial;color:#7a3e00">Sample · Kosha</div></div>
+      <div style="display:flex;gap:34px;margin-top:34px">
+        <div style="width:150px;height:185px;border-radius:12px;background:linear-gradient(#d8cfc4,#b9ab9b);display:grid;place-items:center;font:600 14px Arial;color:#655">PHOTO</div>
+        <div style="display:grid;gap:14px">
+          <div><div class="lbl">Name</div><div class="val">Ramesh Verma</div></div>
+          <div><div class="lbl">Date of Birth</div><div class="val">15/08/1979</div></div>
+          <div><div class="lbl">Gender</div><div class="val">Male</div></div>
+        </div>
+      </div>
+      <div style="position:absolute;left:0;right:0;bottom:56px;text-align:center;font:700 38px Arial;letter-spacing:.14em;color:#111">9876 5432 7712</div>
+      <div class="foot">Fictional sample document for the Kosha demo. Not issued by any authority.</div>${stamp}</div>`,
+  },
+  {
+    file: 'shopC/udyam-assist-certificate.jpg', w: 900, h: 1180,
+    html: `<div class="card" style="width:900px;height:1180px;background:#fbfffb;padding:56px 64px;font-size:19px;color:#222;border:10px double #2f7d4f">
+      <div style="text-align:center"><div style="font:700 27px Arial">UDYAM ASSIST CERTIFICATE</div><div style="margin-top:6px;color:#555">Informal Micro Enterprise · Udyam Assist Platform (sample layout)</div></div>
+      <div style="margin-top:44px;text-align:center"><div class="lbl">Udyam Registration Number</div><div style="font:700 32px Arial;letter-spacing:.06em;margin-top:6px">UDYAM-MP-24-0098765</div></div>
+      <table style="width:100%;margin-top:40px;border-collapse:collapse">
+        ${[['Name of Enterprise', 'VERMA KIRANA & DAIRY'], ['Type of Enterprise', 'Informal Micro Enterprise'], ['Major Activity', 'Trading · Retail'], ['Name of Owner', 'RAMESH VERMA'], ['Address', '12, Sanchar Nagar Main Road, Indore, Madhya Pradesh 452006'], ['Date of Commencement', '11/04/2016'], ['Date of Registration', '02/03/2024'], ['Registered through', 'Designated agency (sample)']].map(([k, v]) => `<tr><td style="padding:15px 12px;border:1px solid #bfd9c7;width:42%;color:#555">${k}</td><td style="padding:15px 12px;border:1px solid #bfd9c7">${v}</td></tr>`).join('')}
+      </table>
+      <div class="foot" style="bottom:24px">Fictional sample document · not issued by any authority</div>${stamp}</div>`,
+  },
+)
+
 const browser = await puppeteer.launch({ executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', headless: 'new' })
 const page = await browser.newPage()
-for (const d of DOCS) {
+const only = process.argv[2]
+for (const d of DOCS.filter((x) => !only || x.file.includes(only))) {
   await page.setViewport({ width: d.w + 80, height: d.h + 80, deviceScaleFactor: 1 })
   await page.setContent(`<!doctype html><style>${base} body{width:${d.w + 80}px;height:${d.h + 80}px}</style>${d.html}`)
   const el = await page.$('.card')

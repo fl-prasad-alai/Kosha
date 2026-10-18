@@ -337,3 +337,142 @@ for (const b of B_elec) {
   b.universal = r2(b.total - sub - b.vat);
   assert(b.universal > 0 && b.universal < 300, 'B universal');
 }
+
+/* ============================== SHOP C ============================== */
+// Verma Kirana & Dairy, Indore. Same structure as shop A; the owner adds identity and registration by hand.
+const C_days = range('2026-09-22', 21); // Tue 22 Sep .. Mon 12 Oct
+const C_cash = [4180, 4320, 4050, 4610, 4980, 5060, 3920, 4010, 4260, 3880, 4470, 4890, 4930, 4090,
+  3960, 4230, 4150, 4580, 4910, 5040];
+C_cash.push(4400 * 21 - sum(C_cash));
+assert(C_cash.length === 21 && sum(C_cash) === 92400, 'C cash sum');
+assert(C_cash.every((x) => x >= 3800 && x <= 5200), 'C cash range ' + C_cash.at(-1));
+
+export const C_invoices = [
+  {
+    file: 'shopC/invoice-1.jpg', supplier: 'jain', no: 'JPS/26-27/0412', date: '2026-09-24',
+    items: [
+      ['Wheat Atta 10 kg', '1101', 10, 'Bag', 410],
+      ['Rice (Kolam) 25 kg bag', '1006', 4, 'Bag', 1340],
+      ['Chana Dal (loose)', '0713', 25, 'Kg', 94],
+      ['Sugar (S-30)', '1701', 50, 'Kg', 43],
+      ['Soyabean Oil 1 L pouch', '1507', 30, 'Pcs', 132],
+      ['Poha 1 kg', '1904', 20, 'Pcs', 54],
+      ['Tea CTC (loose)', '0902', 4, 'Kg', 285],
+    ],
+  },
+  {
+    file: 'shopC/invoice-2.jpg', supplier: 'malwa', no: 'MDA/2026/1876', date: '2026-10-03',
+    items: [
+      ['Toned Milk 500 ml (crate of 24)', '0401', 18, 'Crate', 312],
+      ['Curd 400 g cup', '0403', 60, 'Pcs', 34],
+      ['Paneer 200 g', '0406', 40, 'Pcs', 88],
+      ['Butter 100 g', '0405', 30, 'Pcs', 56],
+      ['Desi Ghee 1 L', '0405', 8, 'Pcs', 610],
+    ],
+  },
+  {
+    file: 'shopC/invoice-3.jpg', supplier: 'jain', no: 'JPS/26-27/0468', date: '2026-10-08',
+    items: [
+      ['Wheat Atta 10 kg', '1101', 10, 'Bag', 410],
+      ['Basmati Rice 5 kg', '1006', 6, 'Bag', 515],
+      ['Toor Dal (loose)', '0713', 25, 'Kg', 140],
+      ['Sugar (S-30)', '1701', 50, 'Kg', 43],
+      ['Soyabean Oil 1 L pouch', '1507', 24, 'Pcs', 132],
+      ['Glucose Biscuits (ctn of 48)', '1905', 4, 'Ctn', 470],
+    ],
+  },
+];
+for (const inv of C_invoices) inv.total = sum(inv.items.map((i) => i[2] * i[4]));
+const invC = Object.fromEntries(C_invoices.map((i) => [i.date, i]));
+export const C_purchases = [
+  ['2026-09-24', 'jain', '0412', invC['2026-09-24'].total],
+  ['2026-09-26', 'malwa', '1851', 12880],
+  ['2026-09-28', 'jain', '0427', 19650],
+  ['2026-10-01', 'jain', '0441', 18920],
+  ['2026-10-03', 'malwa', '1876', invC['2026-10-03'].total],
+  ['2026-10-05', 'jain', '0453', 17460],
+  ['2026-10-08', 'jain', '0468', invC['2026-10-08'].total],
+  ['2026-10-10', 'malwa', '1902', 0],
+  ['2026-10-12', 'jain', '0481', 18210],
+];
+export const C_PURCHASE_TOTAL = 160000;
+C_purchases[7][3] = C_PURCHASE_TOTAL - sum(C_purchases.map((p) => p[3]));
+assert(C_purchases[7][3] > 9000 && C_purchases[7][3] < 20000, 'C balancing purchase ' + C_purchases[7][3]);
+for (const p of C_purchases) {
+  const w = dow(D(p[0]));
+  assert(p[1] === 'jain' ? (w === 1 || w === 4) : w === 6, 'C purchase weekday ' + p[0]);
+}
+export const C_other = [
+  ['2026-09-23', 'udhar', 'उधार — सुरेश (दूध, ब्रेड)', 640],
+  ['2026-09-25', 'exp', 'मज़दूरी (माल उतराई)', 250],
+  ['2026-09-26', 'udhar', 'उधार — शांति बाई (आटा, तेल)', 920],
+  ['2026-09-29', 'repay', 'सुरेश से वापस', 400],
+  ['2026-10-01', 'exp', 'किराया — दुकान (अक्टूबर)', 9000],
+  ['2026-10-02', 'udhar', 'उधार — इरफ़ान (दूध, पनीर)', 760],
+  ['2026-10-04', 'exp', 'चाय-नाश्ता', 110],
+  ['2026-10-06', 'exp', 'बिजली बिल (सितंबर)', 6630],
+  ['2026-10-07', 'repay', 'शांति बाई से वापस', 500],
+  ['2026-10-09', 'udhar', 'उधार — सुरेश (दही, ब्रेड)', 580],
+  ['2026-10-10', 'exp', 'मज़दूरी (माल उतराई)', 250],
+  ['2026-10-11', 'repay', 'इरफ़ान से वापस', 300],
+];
+export const C_credit = {
+  given: sum(C_other.filter((o) => o[1] === 'udhar').map((o) => o[3])),
+  repaid: sum(C_other.filter((o) => o[1] === 'repay').map((o) => o[3])),
+};
+C_credit.net = C_credit.given - C_credit.repaid;
+assert(C_credit.net >= 1500 && C_credit.net <= 2500, 'C credit net ' + C_credit.net);
+const C_supName = { jain: 'जैन प्रोविज़न स्टोर्स', malwa: 'मालवा डेयरी एजेंसी' };
+export const C_rows = [];
+C_days.forEach((d, i) => {
+  const k = iso(d);
+  C_rows.push({ date: k, text: 'बिक्री — नकद', amt: C_cash[i], kind: 'sale', strike: k === '2026-10-06' ? 4510 : null });
+  for (const p of C_purchases.filter((p) => p[0] === k))
+    C_rows.push({ date: k, text: `माल — ${C_supName[p[1]]} (बिल ${p[2]})`, amt: p[3], kind: 'purchase' });
+  for (const o of C_other.filter((o) => o[0] === k)) C_rows.push({ date: k, text: o[2], amt: o[3], kind: o[1] });
+});
+export const C_pages = [
+  { file: 'shopC/ledger-1.jpg', title: 'सितंबर 2026 — पन्ना 1', from: '2026-09-22', to: '2026-09-28' },
+  { file: 'shopC/ledger-2.jpg', title: 'सितंबर–अक्टूबर 2026 — पन्ना 2', from: '2026-09-29', to: '2026-10-05' },
+  { file: 'shopC/ledger-3.jpg', title: 'अक्टूबर 2026 — पन्ना 3', from: '2026-10-06', to: '2026-10-12' },
+].map((p) => ({ ...p, rows: C_rows.filter((r) => r.date >= p.from && r.date <= p.to) }));
+export const C_cashDays = C_days.map((d, i) => [iso(d), C_cash[i]]);
+
+// UPI statement 13 Sep .. 12 Oct (30 days), avg 5,400, weekends ~20% higher
+export let C_upi;
+{
+  const r = rng(91);
+  const days = range('2026-09-13', 30);
+  const wk = 162000 / (21 + 9 * 1.2);
+  C_upi = days.map((d) => {
+    const we = dow(d) === 0 || dow(d) === 6;
+    return { date: iso(d), we, amt: Math.round(((we ? wk * 1.2 : wk) * (1 + (r() - 0.5) * 0.12)) / 10) * 10 };
+  });
+  let diff = 162000 - sum(C_upi.map((x) => x.amt));
+  const wd = C_upi.filter((x) => !x.we);
+  for (let i = 0; diff !== 0; i = (i + 1) % wd.length) {
+    const step = Math.sign(diff) * Math.min(Math.abs(diff), 40);
+    wd[i].amt += step; diff -= step;
+  }
+  for (const x of C_upi) x.count = Math.max(30, Math.min(60, Math.round(x.amt / (130 + r() * 30))));
+  assert(sum(C_upi.map((x) => x.amt)) === 162000, 'C upi sum');
+}
+
+export const C_elec = [
+  { file: 'shopC/electricity-1.jpg', month: 'Jul 2026', period: '01-07-2026 to 31-07-2026', billDate: '06-08-2026', due: '20-08-2026', billNo: 'MPD/2607/2208134', prev: 30412, kwh: 528, total: 6170,
+    lastPay: { amt: 6020, date: '14-07-2026', forMonth: 'Jun 2026', due: '18-07-2026' } },
+  { file: 'shopC/electricity-2.jpg', month: 'Aug 2026', period: '01-08-2026 to 31-08-2026', billDate: '05-09-2026', due: '19-09-2026', billNo: 'MPD/2608/2210457', prev: 30940, kwh: 551, total: 6410,
+    lastPay: { amt: 6170, date: '17-08-2026', forMonth: 'Jul 2026', due: '20-08-2026' } },
+  { file: 'shopC/electricity-3.jpg', month: 'Sep 2026', period: '01-09-2026 to 30-09-2026', billDate: '06-10-2026', due: '20-10-2026', billNo: 'MPD/2609/2212981', prev: 31491, kwh: 572, total: 6630,
+    lastPay: { amt: 6410, date: '15-09-2026', forMonth: 'Aug 2026', due: '19-09-2026' } },
+];
+for (const b of C_elec) {
+  const r2 = (x) => Math.round(x * 100) / 100;
+  b.fixed = 470;
+  b.energy = r2(b.kwh * 8.2);
+  b.wheeling = r2(b.kwh * 1.17);
+  const base = r2(b.fixed + b.energy + b.wheeling);
+  b.duty = r2(base * 0.12);
+  b.fac = r2(b.total - base - b.duty);
+  assert(b.fac > 0 && b.fac < 200, 'C fac ' + b.fac)
+}

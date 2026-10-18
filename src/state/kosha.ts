@@ -33,6 +33,8 @@ export const EMPTY_PROFILE: Profile = { shopName: '', ownerName: '', address: ''
 
 interface KoshaState {
   sampleId: string | null
+  /** The sample shop's owner adds identity by hand, so the walkthrough starts at "Who you are". */
+  sampleByHand: boolean
   sampleAnswers: Partial<Record<QuestionId, string>>
   profile: Profile
   docs: { [K in DocKind]: DocState<K> }
@@ -97,6 +99,7 @@ async function thumbnailOf(file?: File): Promise<string | undefined> {
 
 export const useKosha = create<KoshaState>()(persist((set, get) => ({
   sampleId: null,
+  sampleByHand: false,
   sampleAnswers: {},
   profile: EMPTY_PROFILE,
   docs: emptyDocs(),
@@ -237,7 +240,7 @@ export const useKosha = create<KoshaState>()(persist((set, get) => ({
   loadSample: async (sample) => {
     get().reset()
     // Sample shops are fictional, so consent is pre-filled to keep the walkthrough quick; it stays visible and editable.
-    set({ sampleId: sample.id, profile: sample.profile, sampleAnswers: sample.interview, consent: DEFAULT_CONSENT, agreed: true })
+    set({ sampleId: sample.id, sampleByHand: !!sample.handDocs, profile: sample.profile, sampleAnswers: sample.interview, consent: DEFAULT_CONSENT, agreed: true })
     const entries = await Promise.all(DOC_KINDS.map(async (k) => [k, await sampleFiles(sample.docs[k])] as const))
     for (const [k, files] of entries) get().setFiles(k, files)
     // Start reading everything at once; each step reveals its own result.
@@ -249,7 +252,7 @@ export const useKosha = create<KoshaState>()(persist((set, get) => ({
     controllers.forEach((c) => c.abort())
     controllers.clear()
     Object.values(get().docs).forEach((d) => d.urls.forEach((u) => URL.revokeObjectURL(u)))
-    set({ sampleId: null, sampleAnswers: {}, profile: EMPTY_PROFILE, docs: emptyDocs(), location: { status: 'idle' }, answers: {}, assessment: null, assessStatus: 'idle', assessError: undefined, consent: DEFAULT_CONSENT, agreed: false, idInput: {}, qr: { status: 'idle' }, pending: {} })
+    set({ sampleId: null, sampleByHand: false, sampleAnswers: {}, profile: EMPTY_PROFILE, docs: emptyDocs(), location: { status: 'idle' }, answers: {}, assessment: null, assessStatus: 'idle', assessError: undefined, consent: DEFAULT_CONSENT, agreed: false, idInput: {}, qr: { status: 'idle' }, pending: {} })
   },
 
   restoreFiles: async () => {
@@ -271,6 +274,7 @@ export const useKosha = create<KoshaState>()(persist((set, get) => ({
   storage: createJSONStorage(() => sessionStorage),
   partialize: (s) => ({
     sampleId: s.sampleId,
+    sampleByHand: s.sampleByHand,
     sampleAnswers: s.sampleAnswers,
     profile: s.profile,
     docs: Object.fromEntries(DOC_KINDS.map((k) => [k, { files: [], urls: [], status: s.docs[k].status === 'done' ? 'done' : 'idle', result: s.docs[k].result, meta: s.docs[k].meta }])),

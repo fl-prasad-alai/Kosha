@@ -10,7 +10,7 @@ export const ai = new GoogleGenAI({ apiKey: KEY })
 export const backend = 'ai-studio'
 export const configured = !!KEY
 
-export const MODELS = String(import.meta.env.VITE_GEMINI_MODELS ?? 'gemini-3-flash-preview,gemini-2.5-flash,gemini-3.5-flash')
+export const MODELS = String(import.meta.env.VITE_GEMINI_MODELS ?? 'gemini-3-flash-preview,gemini-3.5-flash,gemini-flash-latest,gemini-3.5-flash-lite,gemini-2.5-flash')
   .split(',')
   .map((m) => m.trim())
   .filter(Boolean)

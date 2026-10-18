@@ -161,7 +161,7 @@ export default function Landing() {
         <div className="eyebrow">Try it now</div>
         <h2 className="font-display mt-2 text-4xl">Open a sample shop.</h2>
         <p className="mt-2 max-w-[60ch] text-ink-2">Each sample comes with realistic photos of its ledger, bills and payment records. Gemini reads them live, the same way it would read yours.</p>
-        <div className="mt-8 grid gap-5 md:grid-cols-2">
+        <div className="mt-8 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
           {samples.map((s) => (
             <Tilt key={s.id} rotationFactor={6} className="rounded-3xl">
               <button onClick={() => open(s)} className="glass-strong edge-gold group block w-full overflow-hidden rounded-3xl text-left">
@@ -169,6 +169,7 @@ export default function Landing() {
                   {s.docs.shopfront?.[0] && <img src={`/samples/${s.docs.shopfront[0]}`} alt="" className="size-full object-cover transition duration-700 group-hover:scale-105" />}
                   <div className="absolute inset-0 bg-gradient-to-t from-night via-night/30 to-transparent" />
                   <span className="glass absolute left-4 top-4 rounded-full px-2.5 py-1 font-mono text-[11px]">{COUNTRIES[s.profile.country]?.flag} {COUNTRIES[s.profile.country]?.name}</span>
+                  {s.handDocs && <span className="absolute right-4 top-4 rounded-full bg-gold px-2.5 py-1 text-[11px] font-semibold text-[#1b1203]">Add ID yourself</span>}
                 </div>
                 <div className="flex items-end justify-between gap-4 p-5">
                   <div>

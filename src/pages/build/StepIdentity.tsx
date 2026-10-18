@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { motion } from 'motion/react'
 import { Building2, CreditCard, Fingerprint, ImageUp, Info, Keyboard, Loader2, Lock, ScanLine, ShieldCheck, Sparkles, UserRound, X } from 'lucide-react'
 import type { BusinessDoc, IdentityDoc } from '@shared/types'
@@ -10,6 +10,7 @@ import { AssuranceMeter, ProofBadge } from '@/components/kosha/Assurance'
 import { MetaLine, Panel, StatusIcon, StepHeader, fieldCls } from '@/components/kosha/ui'
 import { buildIdentity, gstinProblem, maskPan, validFssai, validPan, validTin, validUdyam } from '@/fb/identity'
 import { cn } from '@/lib/utils'
+import { loadSamples, sampleFiles, type SampleShop } from '@/lib/samples'
 
 const ID_NAME: Record<string, string> = { pan: 'PAN card', aadhaar: 'Aadhaar card', voter_id: 'Voter ID', driving_licence: 'Driving licence', passport: 'Passport', philsys: 'PhilSys ID', umid: 'UMID', ktp: 'KTP', other: 'ID card' }
 const BIZ_NAME: Record<string, string> = { gst: 'GST certificate', udyam: 'Udyam certificate', udyam_assist: 'Udyam Assist certificate', fssai: 'FSSAI licence', shop_establishment: 'Shop licence', trade_licence: 'Trade licence', dti: 'DTI business name', mayors_permit: "Mayor's permit", bir: 'BIR registration', nib: 'NIB', other: 'Registration' }
@@ -127,6 +128,18 @@ export function StepIdentity() {
     })
   }
 
+  // A sample shop whose owner adds identity by hand: offer his documents (and one wrong one) to try.
+  const [hand, setHand] = useState<SampleShop['handDocs']>()
+  useEffect(() => { if (sampleId) void loadSamples().then((all) => setHand(all.find((x) => x.id === sampleId)?.handDocs)) }, [sampleId])
+  const tryDoc = async (which: 'pan' | 'aadhaar' | 'business' | 'wrong') => {
+    const path = which === 'wrong' ? hand?.wrong ?? s.docs.electricity.files[0]?.name : hand?.[which]
+    const f = which === 'wrong' && !hand?.wrong ? s.docs.electricity.files[0] : (await sampleFiles([path!]))[0]
+    if (!f) return
+    if (which === 'aadhaar') s.addAadhaarPhoto(f)
+    else if (which === 'business') { if (bizMode !== 'photo') chooseBiz('photo'); uploadBiz([f]) }
+    else { if (panMode !== 'photo') choosePan('photo'); uploadCard([f]) }
+  }
+
   // The same rules the passport uses, run live so the owner sees each check as she goes.
   const live = useMemo(
     () => buildIdentity({ profile, input: { ...idInput, sample }, identity: idDone ? idDoc.result : undefined, business: bizDoc.status === 'done' ? bizDoc.result : undefined, electricity: s.docs.electricity.result }),
@@ -168,6 +181,16 @@ export function StepIdentity() {
         title="Show who runs the shop"
         sub="Scan or upload instead of typing. Every detail is checked against your other documents, so lenders can trust your passport without a visit."
       />
+
+      {hand && (
+        <div className="glass mb-5 flex flex-wrap items-center gap-2 rounded-2xl px-4 py-3 text-sm">
+          <span className="rounded-full bg-gold/15 px-2 py-0.5 font-mono text-[11px] text-gold">SAMPLE SHOP</span>
+          <span className="text-ink-2">Try the uploads with {profile.ownerName.split(' ')[0]}'s documents:</span>
+          {([['pan', 'PAN card'], ['aadhaar', 'Aadhaar card'], ['business', 'Udyam Assist certificate'], ['wrong', 'a wrong document']] as const).map(([k, label]) => (
+            <button key={k} type="button" onClick={() => void tryDoc(k)} className={cn('rounded-full border px-3 py-1 transition', k === 'wrong' ? 'border-vermilion/40 text-vermilion hover:bg-vermilion/10' : 'border-line hover:border-gold/60 hover:text-ink')}>{label}</button>
+          ))}
+        </div>
+      )}
 
       <div className="mb-5 grid gap-3 sm:grid-cols-2">
         <AssuranceMeter label="Your identity" level={live.summary.person} icon={UserRound} hint={personHint} />

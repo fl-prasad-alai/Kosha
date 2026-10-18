@@ -83,8 +83,8 @@ svg{display:block;transform:rotate(-0.6deg) scale(1.02);filter:saturate(.9) cont
 <body>${svg}<div class="mark">${sample}</div></body></html>`;
 }
 
-export function shopfrontA(fonts, sample) {
-  const r = rng(404);
+export function shopfrontA(fonts, sample, sign = { hi: 'शर्मा जनरल स्टोर', en: 'SHARMA GENERAL STORE', seed: 404, upi: 'sharmagenstore@pmcb' }) {
+  const r = rng(sign.seed ?? 404);
   let shelves = '';
   const shelfY = [345, 425, 505, 585];
   for (const y of shelfY) {
@@ -110,8 +110,8 @@ export function shopfrontA(fonts, sample) {
    <rect x="90" y="52" width="1100" height="178" fill="#f6c516"/>
    <rect x="90" y="52" width="1100" height="178" fill="none" stroke="#b3261e" stroke-width="10"/>
    <rect x="90" y="52" width="1100" height="178" filter="url(#grime)" opacity=".55"/>
-   <text x="640" y="150" text-anchor="middle" font-family="'Baloo 2', 'Noto Sans Devanagari'" font-weight="800" font-size="96" fill="#b3261e">शर्मा जनरल स्टोर</text>
-   <text x="640" y="208" text-anchor="middle" font-family="Anton, Impact, sans-serif" font-size="46" letter-spacing="6" fill="#1b3f8f">SHARMA GENERAL STORE</text>
+   <text x="640" y="150" text-anchor="middle" font-family="'Baloo 2', 'Noto Sans Devanagari'" font-weight="800" font-size="96" fill="#b3261e">${sign.hi}</text>
+   <text x="640" y="208" text-anchor="middle" font-family="Anton, Impact, sans-serif" font-size="46" letter-spacing="6" fill="#1b3f8f">${sign.en.replace(/&/g, '&amp;')}</text>
   </g>
   <!-- tube light glow -->
   <rect x="520" y="234" width="240" height="7" rx="3" fill="#fffef5"/>
@@ -152,7 +152,7 @@ export function shopfrontA(fonts, sample) {
    <text x="1070" y="423" text-anchor="middle" font-family="Inter" font-weight="800" font-size="15" fill="#fff">SCAN &amp; PAY</text>
    ${qr(1018, 442, 104, 17)}
    <text x="1070" y="566" text-anchor="middle" font-family="Inter" font-weight="700" font-size="11" fill="#222">UPI accepted</text>
-   <text x="1070" y="581" text-anchor="middle" font-family="Inter" font-size="10" fill="#333">sharmagenstore@pmcb</text>
+   <text x="1070" y="581" text-anchor="middle" font-family="Inter" font-size="10" fill="#333">${sign.upi ?? 'sharmagenstore@pmcb'}</text>
   </g>
   <!-- small chalk board left -->
   <g transform="rotate(-2 70 560)"><rect x="18" y="470" width="96" height="140" fill="#2e3b33" stroke="#6b5236" stroke-width="5"/>
