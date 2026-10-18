@@ -236,3 +236,6 @@ export const useKosha = create<KoshaState>()(persist((set, get) => ({
   }) as unknown as KoshaState,
   onRehydrateStorage: () => (state) => void state?.restoreFiles(),
 }))
+
+// Development only: lets the end-to-end tests read and drive the same store the app uses.
+if (import.meta.env.DEV) (globalThis as { __kosha?: typeof useKosha }).__kosha = useKosha
