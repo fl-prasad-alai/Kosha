@@ -47,6 +47,9 @@ interface KoshaState {
   /** Who the owner is: typed numbers and the Aadhaar QR, if scanned. */
   idInput: IdentityInput
   qr: { status: Status; error?: string }
+  /** A document the user just picked, while Gemini reads it, or why it was not accepted. Nothing shows on the
+   *  page until it is read and is the right kind of document. */
+  pending: Partial<Record<DocKind, { status: 'reading' | 'rejected'; message?: string; what?: string }>>
 
   setConsent: (c: ConsentInput) => void
   setAgreed: (v: boolean) => void
@@ -56,6 +59,12 @@ interface KoshaState {
   scanQr: (text: string) => Promise<void>
   /** A photo of the Aadhaar card with no readable QR: Gemini reads the card instead (last 4 digits only). */
   addAadhaarPhoto: (file: File) => void
+  /**
+   * Reads newly picked files (with `keep`, files already accepted for the same kind) and accepts them only if
+   * `check` passes; otherwise the page keeps what it had and shows why.
+   */
+  upload: <K extends DocKind>(kind: K, files: File[], o: { keep?: File[]; what: string; check: (r: ExtractResultMap[K], fromFile: number) => string | null }) => Promise<boolean>
+  clearPending: (kind: DocKind) => void
   setFiles: (kind: DocKind, files: File[]) => void
   removeFile: (kind: DocKind, index: number) => void
   read: (kind: DocKind) => Promise<void>
@@ -99,6 +108,32 @@ export const useKosha = create<KoshaState>()(persist((set, get) => ({
   agreed: false,
   idInput: {},
   qr: { status: 'idle' },
+  pending: {},
+
+  clearPending: (kind) => set((s) => ({ pending: { ...s.pending, [kind]: undefined } })),
+  upload: async (kind, files, o) => {
+    const keep = o.keep ?? []
+    const all = [...keep, ...files]
+    set((s) => ({ pending: { ...s.pending, [kind]: { status: 'reading', what: o.what } } }))
+    try {
+      const out = await api.extractDocs(kind, all, get().profile)
+      const problem = o.check(out.result as never, keep.length)
+      if (problem) {
+        set((s) => ({ pending: { ...s.pending, [kind]: { status: 'rejected', message: problem, what: o.what } } }))
+        return false
+      }
+      get().docs[kind].urls.forEach((u) => URL.revokeObjectURL(u))
+      set((s) => ({
+        docs: { ...s.docs, [kind]: { files: all, urls: all.map((f) => URL.createObjectURL(f)), status: 'done', result: out.result, meta: out.meta } },
+        pending: { ...s.pending, [kind]: undefined },
+        assessment: null,
+      }))
+      return true
+    } catch (e) {
+      set((s) => ({ pending: { ...s.pending, [kind]: { status: 'rejected', message: (e as Error).message, what: o.what } } }))
+      return false
+    }
+  },
 
   setIdInput: (p) => set((s) => ({ idInput: { ...s.idInput, ...p }, assessment: null })),
   scanQr: async (text) => {
@@ -114,8 +149,12 @@ export const useKosha = create<KoshaState>()(persist((set, get) => ({
   addAadhaarPhoto: (file) => {
     const named = new File([file], `aadhaar-${file.name}`, { type: file.type })
     set({ qr: { status: 'idle' } })
-    get().setFiles('identity', [...get().docs.identity.files.filter((f) => !f.name.startsWith('aadhaar-')), named])
-    void get().read('identity')
+    const keep = get().docs.identity.files.filter((f) => !f.name.startsWith('aadhaar-'))
+    void get().upload('identity', [named], {
+      keep,
+      what: 'aadhaar',
+      check: (r, from) => (r.documents.some((d) => d.kind === 'aadhaar' && d.file >= from) ? null : "This doesn't look like an Aadhaar card. Upload a clear photo of the front of the card, or scan its QR."),
+    })
   },
 
   setConsent: (consent) => set({ consent }),
@@ -210,7 +249,7 @@ export const useKosha = create<KoshaState>()(persist((set, get) => ({
     controllers.forEach((c) => c.abort())
     controllers.clear()
     Object.values(get().docs).forEach((d) => d.urls.forEach((u) => URL.revokeObjectURL(u)))
-    set({ sampleId: null, sampleAnswers: {}, profile: EMPTY_PROFILE, docs: emptyDocs(), location: { status: 'idle' }, answers: {}, assessment: null, assessStatus: 'idle', assessError: undefined, consent: DEFAULT_CONSENT, agreed: false, idInput: {}, qr: { status: 'idle' } })
+    set({ sampleId: null, sampleAnswers: {}, profile: EMPTY_PROFILE, docs: emptyDocs(), location: { status: 'idle' }, answers: {}, assessment: null, assessStatus: 'idle', assessError: undefined, consent: DEFAULT_CONSENT, agreed: false, idInput: {}, qr: { status: 'idle' }, pending: {} })
   },
 
   restoreFiles: async () => {
