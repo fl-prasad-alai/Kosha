@@ -3,7 +3,7 @@
 import type {
   Check, ElectricityResult, EvidenceRef, InterviewAnswer, InvoiceResult, LedgerResult, LocationResult,
   Metrics, Offer, PaymentsResult, Pillar, Profile, ScheduleMonth, ShopfrontResult, SourceNode,
-} from '../shared/types.ts'
+} from '@shared/types'
 
 export interface Inputs {
   profile: Profile

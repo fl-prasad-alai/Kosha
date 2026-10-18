@@ -10,3 +10,7 @@ scripts/samples/out
 scripts/samples/build
 scripts/samples/kosha/build
 e2e-shots
+.firebase
+firebase-debug.log
+firestore-debug.log
+.env.*.local

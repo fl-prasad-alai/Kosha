@@ -1,7 +1,7 @@
 // Voice interview: Gemini listens to one spoken answer (any language) and pulls out the facts.
 import type { Part } from '@google/genai'
-import { QUESTIONS } from '../shared/questions.ts'
-import type { InterviewAnswer, Profile, QuestionId } from '../shared/types.ts'
+import { QUESTIONS } from '@shared/questions'
+import type { InterviewAnswer, Profile, QuestionId } from '@shared/types'
 import { generate, inline, GeminiError } from './gemini.ts'
 
 const SCHEMA = {
@@ -34,7 +34,7 @@ Transcribe faithfully, translate to English, and extract only the facts the answ
 export async function readAnswer(
   id: QuestionId,
   profile: Partial<Profile>,
-  input: { audio?: { buffer: Buffer; mimetype: string }; text?: string },
+  input: { audio?: { data: string; mimetype: string }; text?: string },
 ): Promise<InterviewAnswer> {
   const q = QUESTIONS.find((x) => x.id === id)
   if (!q) throw new GeminiError('Unknown question.', 400)
@@ -46,7 +46,7 @@ Question asked: "${q.english}"${profile.language && q.local[profile.language] ? 
 ${input.audio ? 'The answer is in the audio.' : `The owner typed: """${input.text}"""`}`,
     },
   ]
-  if (input.audio) parts.push(inline(input.audio.buffer, input.audio.mimetype.split(';')[0] || 'audio/webm'))
+  if (input.audio) parts.push(inline(input.audio.data, input.audio.mimetype.split(';')[0] || 'audio/webm'))
   const res = await generate<Omit<InterviewAnswer, 'id' | 'meta'>>({
     task: 'interview.v1',
     system: SYSTEM,

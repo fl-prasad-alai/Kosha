@@ -1,0 +1,15 @@
+{
+  "projects": {
+    "default": "kosha-passport-37864"
+  },
+  "targets": {
+    "kosha-passport-37864": {
+      "hosting": {
+        "app": [
+          "kosha-ai"
+        ]
+      }
+    }
+  },
+  "etags": {}
+}

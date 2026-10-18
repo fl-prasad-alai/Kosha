@@ -17,6 +17,7 @@ const browser = await puppeteer.launch({
 const page = await browser.newPage()
 const errors = []
 page.on('console', (m) => m.type() === 'error' && errors.push(m.text()))
+page.on('console', (m) => m.type() === 'warn' && /gemini|tts|location|access/i.test(m.text()) && console.log('  warn:', m.text().slice(0, 200)))
 page.on('pageerror', (e) => errors.push(String(e)))
 
 const t0 = Date.now()
@@ -48,6 +49,17 @@ const fail = async (what, e) => {
 }
 const waitText = (text, timeout = 180000) => page.waitForFunction((t) => document.body.innerText.includes(t), { timeout, polling: 500 }, text).catch((e) => fail(text, e))
 const waitGone = (text, timeout = 180000) => page.waitForFunction((t) => !document.body.innerText.includes(t), { timeout, polling: 500 }, text).catch((e) => fail(`no "${text}"`, e))
+
+const signOut = async () => {
+  await page.evaluate(() => new Promise((r) => { const q = indexedDB.deleteDatabase('firebaseLocalStorageDb'); q.onsuccess = q.onerror = q.onblocked = () => r() }))
+}
+const demo = async (role) => {
+  await signOut()
+  await page.goto(`${BASE}/login`, { waitUntil: 'networkidle2' })
+  await page.waitForFunction(() => document.body.innerText.includes('Admin demo'), { timeout: 30000 })
+  await clickText(role === 'admin' ? 'Admin demo' : role === 'lender' ? 'Lender demo' : 'Shop owner demo')
+  await page.waitForFunction(() => location.pathname !== '/login', { timeout: 30000 }).catch((e) => fail(`demo ${role} sign-in`, e))
+}
 
 process.on('unhandledRejection', async (e) => {
   console.error('FAILED:', e.message)
@@ -101,19 +113,19 @@ if (id) {
   await waitText('Manage sharing')
   await shot('09-owner')
 }
-await page.evaluate(() => fetch('/api/auth/demo', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ role: 'lender' }) }))
+await demo('lender')
 await page.goto(`${BASE}/lender`, { waitUntil: 'networkidle2' })
 await waitText('Passports waiting for a decision')
 await shot('10-lender', false)
 // Signed out, the same link shows only the redacted public record.
-await page.evaluate(() => fetch('/api/auth/logout', { method: 'POST' }))
+await signOut()
 if (id) {
   await page.goto(`${BASE}/passport/${id}`, { waitUntil: 'networkidle2' })
   await waitText('This is the public record')
   if (await page.evaluate(() => document.body.innerText.includes('Do the sources agree?'))) await fail('redacted public view', new Error('full passport shown to a signed-out visitor'))
   await shot('11-public', false)
 }
-await page.evaluate(() => fetch('/api/auth/demo', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ role: 'admin' }) }))
+await demo('admin')
 await page.goto(`${BASE}/admin`, { waitUntil: 'networkidle2' })
 await waitText('Lender verification')
 await shot('12-admin', false)

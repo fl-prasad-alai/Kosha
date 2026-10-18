@@ -1,5 +1,5 @@
 // Location intelligence: Gemini grounded on Google Maps (needs billing) with a Google Search fallback.
-import type { LocationResult, Place, Profile } from '../shared/types.ts'
+import type { LocationResult, Place, Profile } from '@shared/types'
 import { generate, GeminiError } from './gemini.ts'
 
 interface Raw {
@@ -45,7 +45,7 @@ Find the shop's own listing, the places that bring it customers, and its competi
 
   // Grounding with Google Maps needs a billed project; turn it on with KOSHA_MAPS_GROUNDING=1.
   const attempts: { source: LocationResult['source']; tools: object[] }[] = [
-    ...(/^(1|true)$/i.test(process.env.KOSHA_MAPS_GROUNDING ?? '') ? [{ source: 'maps' as const, tools: [{ googleMaps: {} }] }] : []),
+    ...(/^(1|true)$/i.test(String(import.meta.env.VITE_MAPS_GROUNDING ?? '')) ? [{ source: 'maps' as const, tools: [{ googleMaps: {} }] }] : []),
     { source: 'search', tools: [{ googleSearch: {} }] },
   ]
   let lastErr: unknown

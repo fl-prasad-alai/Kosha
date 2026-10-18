@@ -1,0 +1,21 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "passports",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "consent.scope", "order": "ASCENDING" },
+        { "fieldPath": "consent.lenderIds", "arrayConfig": "CONTAINS" }
+      ]
+    },
+    {
+      "collectionGroup": "audit",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "ownerId", "order": "ASCENDING" },
+        { "fieldPath": "passportId", "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

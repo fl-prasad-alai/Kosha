@@ -1,30 +1,19 @@
-// One place for every Gemini call: client setup (AI Studio key or Vertex AI), model fallback,
-// retries on overload, JSON parsing and a content-addressed disk cache.
-import { createHash } from 'node:crypto'
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
-import path from 'node:path'
+// One place for every Gemini call: the Gemini API from the browser (Google AI Studio key), model fallback,
+// retries on overload, JSON parsing and a content-addressed cache. The bundled sample results ship as
+// static files under /cache, so the sample shops never spend a Gemini call.
 import { GoogleGenAI, type Part, type Tool, type GenerateContentResponse } from '@google/genai'
-import type { CallMeta } from '../shared/types.ts'
+import type { CallMeta } from '@shared/types'
 
-const useVertex = /^(1|true)$/i.test(process.env.GOOGLE_GENAI_USE_VERTEXAI ?? '')
-export const ai = useVertex
-  ? new GoogleGenAI({
-      vertexai: true,
-      project: process.env.GOOGLE_CLOUD_PROJECT,
-      location: process.env.GOOGLE_CLOUD_LOCATION ?? 'global',
-    })
-  : new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY ?? '' })
+const KEY = import.meta.env.VITE_GEMINI_API_KEY ?? ''
+export const ai = new GoogleGenAI({ apiKey: KEY })
 
-export const backend = useVertex ? 'vertex' : 'ai-studio'
-export const configured = useVertex ? !!process.env.GOOGLE_CLOUD_PROJECT : !!process.env.GEMINI_API_KEY
+export const backend = 'ai-studio'
+export const configured = !!KEY
 
-export const MODELS = (process.env.GEMINI_MODELS ?? 'gemini-3-flash-preview,gemini-2.5-flash,gemini-3.5-flash')
+export const MODELS = String(import.meta.env.VITE_GEMINI_MODELS ?? 'gemini-3-flash-preview,gemini-2.5-flash,gemini-3.5-flash')
   .split(',')
   .map((m) => m.trim())
   .filter(Boolean)
-
-const CACHE_DIRS = [path.resolve('cache'), path.resolve('.cache')] // cache/ ships baked sample results; .cache is local
-const WRITE_DIR = process.env.KOSHA_CACHE_DIR ?? path.resolve('.cache')
 
 export let callCount = 0
 
@@ -36,8 +25,9 @@ export class GeminiError extends Error {
   }
 }
 
-export function inline(data: Buffer, mimeType: string): Part {
-  return { inlineData: { data: data.toString('base64'), mimeType } }
+/** base64 file data → a Gemini part. */
+export function inline(data: string, mimeType: string): Part {
+  return { inlineData: { data, mimeType } }
 }
 
 interface CallOptions {
@@ -62,34 +52,48 @@ export interface CallResult<T> {
   grounding?: unknown
 }
 
-function cacheKey(o: CallOptions): string {
-  const h = createHash('sha256')
-  h.update(o.task)
-  h.update(o.system)
-  h.update(JSON.stringify(o.schema ?? null))
-  for (const p of o.parts) h.update(p.text ?? p.inlineData?.data ?? '')
-  return h.digest('hex').slice(0, 40)
+const enc = new TextEncoder()
+export async function sha256(...chunks: string[]): Promise<string> {
+  const bytes = enc.encode(chunks.join(''))
+  const d = await crypto.subtle.digest('SHA-256', bytes)
+  return [...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, '0')).join('')
 }
+
+// Same key as the server version, so the baked sample results still match.
+async function cacheKey(o: CallOptions): Promise<string> {
+  const parts = o.parts.map((p) => p.text ?? p.inlineData?.data ?? '')
+  return (await sha256(o.task, o.system, JSON.stringify(o.schema ?? null), ...parts)).slice(0, 40)
+}
+
+const memory = new Map<string, { data: unknown; meta: CallMeta; grounding?: unknown }>()
+const LOCAL = 'kosha-gemini:'
 
 async function readCache<T>(key: string): Promise<CallResult<T> | null> {
-  for (const dir of CACHE_DIRS) {
+  let hit = memory.get(key)
+  if (!hit) {
     try {
-      const hit = JSON.parse(await readFile(path.join(dir, `${key}.json`), 'utf8'))
-      return { data: hit.data, meta: { ...hit.meta, cached: true }, grounding: hit.grounding }
-    } catch {
-      /* not cached here */
-    }
+      const s = localStorage.getItem(LOCAL + key)
+      if (s) hit = JSON.parse(s)
+    } catch { /* storage blocked */ }
   }
-  return null
+  if (!hit) {
+    try {
+      const res = await fetch(`/cache/${key}.json`)
+      // Hosting answers unknown paths with the app's HTML, so only JSON counts as a hit.
+      if (res.ok && (res.headers.get('content-type') ?? '').includes('json')) hit = await res.json()
+    } catch { /* offline */ }
+  }
+  if (!hit) return null
+  memory.set(key, hit)
+  return { data: hit.data as T, meta: { ...hit.meta, cached: true }, grounding: hit.grounding }
 }
 
-async function writeCache(key: string, value: object) {
+function writeCache(key: string, value: { task: string; data: unknown; meta: CallMeta; grounding?: unknown }) {
+  memory.set(key, value)
   try {
-    await mkdir(WRITE_DIR, { recursive: true })
-    await writeFile(path.join(WRITE_DIR, `${key}.json`), JSON.stringify(value))
-  } catch (e) {
-    console.warn('[gemini] cache write failed', (e as Error).message)
-  }
+    const s = JSON.stringify(value)
+    if (s.length < 400_000) localStorage.setItem(LOCAL + key, s)
+  } catch { /* full or blocked: memory is enough */ }
 }
 
 /** Pulls the first JSON object or array out of model text (handles ```json fences). */
@@ -115,12 +119,12 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
 /** Calls Gemini, trying each model in turn. Retries 429/5xx twice per model with backoff. */
 export async function generate<T>(o: CallOptions): Promise<CallResult<T>> {
-  const key = cacheKey(o)
+  const key = await cacheKey(o)
   if (!o.noCache) {
     const hit = await readCache<T>(key)
     if (hit) return hit
   }
-  if (!configured) throw new GeminiError('Gemini is not configured. Set GEMINI_API_KEY or Vertex AI variables.', 503)
+  if (!configured) throw new GeminiError('Gemini is not configured for this site yet.', 503)
 
   const models = o.models ?? MODELS
   let lastErr: unknown
@@ -153,8 +157,7 @@ export async function generate<T>(o: CallOptions): Promise<CallResult<T>> {
           cached: false,
         }
         const grounding = res.candidates?.[0]?.groundingMetadata
-        if (!o.noCache) await writeCache(key, { task: o.task, data, meta, grounding })
-        console.log(`[gemini] ${o.task} ${model} ${meta.ms}ms in=${meta.tokensIn} out=${meta.tokensOut}`)
+        if (!o.noCache) writeCache(key, { task: o.task, data, meta, grounding })
         return { data, meta, raw: res, grounding }
       } catch (e) {
         lastErr = e
