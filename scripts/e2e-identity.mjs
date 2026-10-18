@@ -62,7 +62,12 @@ async function realShopFromSample(p, identity, keepIdDocs = false) {
   await waitDocs(p, ['ledger', 'invoice', 'payments', 'electricity'])
 }
 async function issue(p) {
-  // go to the last step and press the real button, as a shop owner would
+  // wait until every document has been read, then go to the last step and press the real button
+  for (let i = 0; i < 240; i++) {
+    const busy = await p.evaluate(() => Object.values(window.__kosha.getState().docs).some((d) => d.status === 'reading' || (d.files.length && d.status === 'idle')))
+    if (!busy) break
+    await sleep(1000)
+  }
   await p.evaluate(() => [...document.querySelectorAll('nav[aria-label=Steps] button')].at(-1).click())
   await p.waitForFunction(() => [...document.querySelectorAll('button')].some((b) => b.textContent?.includes('Build the credit passport') && !b.disabled), { timeout: 240000, polling: 500 })
   await sleep(500)
