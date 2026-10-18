@@ -1,6 +1,6 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { motion } from 'motion/react'
-import { Building2, CreditCard, Fingerprint, Lock, ScanLine, ShieldCheck, Sparkles, UserRound } from 'lucide-react'
+import { Building2, CreditCard, Fingerprint, ImageUp, Keyboard, Lock, ScanLine, ShieldCheck, Sparkles, UserRound } from 'lucide-react'
 import type { BusinessDoc, IdentityDoc } from '@shared/types'
 import { useKosha } from '@/state/kosha'
 import { Dropzone } from '@/components/kosha/Dropzone'
@@ -32,6 +32,14 @@ export function StepIdentity() {
   const firstCard = idDoc.files.findIndex((f) => !isAadhaarFile(f))
   const aadhaarCard = idDoc.result?.documents.find((d) => d.kind === 'aadhaar')
   const cardDocs = (idDoc.result?.documents ?? []).filter((d) => d.kind !== 'aadhaar')
+  // PAN: either a photo of the card, or the number and date of birth typed in
+  const [panMode, setPanMode] = useState<'photo' | 'type'>(idInput.pan && !cardFiles.length ? 'type' : 'photo')
+  const choosePan = (m: 'photo' | 'type') => {
+    if (m === panMode) return
+    setPanMode(m)
+    if (m === 'type') { s.setFiles('identity', aadhaarFiles); if (aadhaarFiles.length) void s.read('identity') }
+    else s.setIdInput({ pan: undefined, dob: idInput.aadhaar?.dob || undefined })
+  }
 
   // The same rules the passport uses, run live so the owner sees each check as she goes.
   const live = useMemo(
@@ -135,13 +143,36 @@ export function StepIdentity() {
             <div className="flex gap-3">
               <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-gold/12 text-gold"><CreditCard className="size-5" /></span>
               <div>
-                <h2 className="text-lg font-semibold">{india ? 'Photograph your PAN card' : 'Photograph your national ID'}</h2>
-                <p className="text-sm text-ink-2">Gemini reads the number, name and date of birth, and looks for signs of editing.</p>
+                <h2 className="text-lg font-semibold">{india ? 'Your PAN' : 'Photograph your national ID'}</h2>
+                <p className="text-sm text-ink-2">{india ? 'Upload a photo of the card, or type the number and your date of birth.' : 'Gemini reads the number, name and date of birth, and looks for signs of editing.'}</p>
               </div>
             </div>
             <div className="flex items-center gap-3"><MetaLine meta={idDoc.meta} />{cardFiles.length > 0 && <button className="text-sm text-ink-3 hover:text-ink" onClick={() => { s.setFiles('identity', aadhaarFiles); if (aadhaarFiles.length) void s.read('identity') }}>Replace</button>}</div>
           </div>
-          {cardFiles.length === 0 ? (
+          {india && (
+            <div className="mb-4 grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="How to add your PAN">
+              {([['photo', ImageUp, 'Upload a photo of the card', 'Gemini reads it · Read from document'], ['type', Keyboard, 'Type the number', 'PAN and date of birth · Self-declared']] as const).map(([m, Icon, title, sub]) => (
+                <button key={m} type="button" role="radio" aria-checked={panMode === m} onClick={() => choosePan(m)} className={cn('flex min-h-14 items-center gap-3 rounded-2xl border px-4 text-left transition', panMode === m ? 'border-gold/70 bg-gold/12' : 'border-line hover:border-line-2')}>
+                  <Icon className={cn('size-5 shrink-0', panMode === m ? 'text-gold' : 'text-ink-3')} />
+                  <span><span className="block text-sm font-semibold">{title}</span><span className="block text-xs text-ink-3">{sub}</span></span>
+                </button>
+              ))}
+            </div>
+          )}
+          {india && panMode === 'type' ? (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="grid gap-1.5 text-sm">
+                <span className="text-ink-2">PAN</span>
+                <input id="pan" className={cn(fieldCls, 'font-mono uppercase')} maxLength={10} placeholder="ABCPS1234F" value={idInput.pan ?? ''} onChange={(e) => s.setIdInput({ pan: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '') })} />
+                {pan.length === 10 && <Hint ok={validPan(pan)}>{validPan(pan) ? `Valid PAN of ${pan[3] === 'P' ? 'an individual' : 'a non-individual'}.` : 'That is not a valid PAN.'}</Hint>}
+              </label>
+              <label className="grid gap-1.5 text-sm">
+                <span className="text-ink-2">Date of birth</span>
+                <input id="dob" type="date" className={fieldCls} value={idInput.dob ?? ''} onChange={(e) => s.setIdInput({ dob: e.target.value })} />
+              </label>
+              <p className="text-xs text-ink-3 sm:col-span-2">Typed details count as self-declared. A photo of the card, or the Aadhaar QR, makes them stronger.</p>
+            </div>
+          ) : cardFiles.length === 0 ? (
             <Dropzone files={cardFiles} urls={[]} max={3} label={india ? 'Add the PAN card' : 'Add an ID card'} hint="Front side, flat, in good light. You can add up to three IDs." onChange={(f) => { s.setFiles('identity', [...aadhaarFiles, ...f]); void s.read('identity') }} />
           ) : (
             <div className="space-y-3">
@@ -163,19 +194,12 @@ export function StepIdentity() {
               ))}
             </div>
           )}
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            {india && (
-              <label className="grid gap-1.5 text-sm">
-                <span className="text-ink-2">PAN</span>
-                <input className={cn(fieldCls, 'font-mono uppercase')} maxLength={10} placeholder="ABCPS1234F" value={idInput.pan ?? panFromCard ?? ''} onChange={(e) => s.setIdInput({ pan: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '') })} />
-                {pan.length === 10 && <Hint ok={validPan(pan)}>{validPan(pan) ? `Valid PAN of ${pan[3] === 'P' ? 'an individual' : 'a non-individual'}.` : 'That is not a valid PAN.'}</Hint>}
-              </label>
-            )}
-            <label className="grid gap-1.5 text-sm">
+          {!india && (
+            <label className="mt-4 grid gap-1.5 text-sm sm:max-w-xs">
               <span className="text-ink-2">Date of birth</span>
               <input type="date" className={fieldCls} value={idInput.dob ?? (idDoc.result?.documents.find((d) => d.dob.length === 10)?.dob ?? '')} onChange={(e) => s.setIdInput({ dob: e.target.value })} />
             </label>
-          </div>
+          )}
         </Panel>
 
         <Panel className="lg:col-span-2">
