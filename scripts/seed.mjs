@@ -46,12 +46,23 @@ for (const u of DEMO_USERS) {
   }
   await db.doc(`users/${u.id}`).set(u)
 }
-await db.doc('orgs/pune-merchants-co-op').set({ id: 'pune-merchants-co-op', org: 'Pune Merchants Co-operative Bank', orgType: 'cooperative', regulated: true })
+// A real Kosha staff account (not a demo): only its approvals let a lender see real shops' passports.
+// KOSHA_ADMIN_EMAIL=… KOSHA_ADMIN_PASSWORD=… node scripts/seed.mjs <project>. The password is never stored here.
+if (process.env.KOSHA_ADMIN_EMAIL && process.env.KOSHA_ADMIN_PASSWORD) {
+  const email = process.env.KOSHA_ADMIN_EMAIL.toLowerCase()
+  let uid
+  try { uid = (await auth.getUserByEmail(email)).uid; await auth.updateUser(uid, { password: process.env.KOSHA_ADMIN_PASSWORD }) }
+  catch { uid = (await auth.createUser({ email, password: process.env.KOSHA_ADMIN_PASSWORD, displayName: 'Kosha Operations' })).uid }
+  await db.doc(`users/${uid}`).set({ id: uid, role: 'admin', name: 'Kosha Operations', email, org: 'Kosha Operations', createdAt: new Date().toISOString() })
+  console.log('Real admin ready:', email)
+}
+await db.doc('orgs/pune-merchants-co-op').set({ id: 'pune-merchants-co-op', org: 'Pune Merchants Co-operative Bank', orgType: 'cooperative', regulated: true, sandbox: true })
 
 for (const f of readdirSync('cache/passports').filter((x) => x.endsWith('.json'))) {
   const a = JSON.parse(readFileSync(`cache/passports/${f}`, 'utf8'))
   delete a.decisions
   delete a.access
+  a.demo = true // owned by the public demo shops
   a.seal = SEALS[a.id] ?? a.seal
   await db.doc(`passports/${a.id}`).set(a)
   const c = a.consent

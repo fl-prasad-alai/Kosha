@@ -15,6 +15,13 @@ service cloud.firestore {
     function isVerifiedLender() { return hasProfile() && me().role == 'lender' && me().get('status', 'pending') == 'verified'; }
     // Does the shop's consent cover the signed-in lender's organisation?
     function covers(consent) { return consent.scope == 'all' || (consent.scope == 'selected' && me().orgId in consent.lenderIds); }
+    // The demo accounts' password is public. Demo accounts, and lenders verified by the demo admin ("sandbox"),
+    // live in a sandbox: they can only ever see passports built by demo accounts, never a real shop's.
+    function isDemo() { return me().get('demo', false) == true; }
+    function sandboxed() { return isDemo() || me().get('sandbox', false) == true; }
+    // A verified lender sees a passport when the shop shared it with its organisation, and, if the lender is
+    // sandboxed, only when it is a demo passport.
+    function lenderSees(p) { return isVerifiedLender() && covers(p.consent) && (!sandboxed() || p.get('demo', false) == true); }
     function passport(id) { return get(/databases/$(database)/documents/passports/$(id)).data; }
     function changes(keys) { return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys); }
 
@@ -36,9 +43,12 @@ service cloud.firestore {
       allow update: if signedIn() && (
         // an account may only record "signed out on every device"
         (userId == uid() && changes(['signedOutBefore']))
-        // Kosha staff verify or reject lender accounts (never the demo lender)
+        // Kosha staff verify or reject lender accounts (never the demo lender). The demo admin's approvals are
+        // sandboxed, and it cannot touch a lender a real admin verified.
         || (isAdmin() && resource.data.role == 'lender' && resource.data.get('demo', false) != true
-            && changes(['status', 'statusNote', 'verifiedAt']) && request.resource.data.status in ['verified', 'rejected'])
+            && changes(['status', 'statusNote', 'verifiedAt', 'sandbox']) && request.resource.data.status in ['verified', 'rejected']
+            && request.resource.data.get('sandbox', false) == isDemo()
+            && (!isDemo() || resource.data.get('status', 'pending') != 'verified' || resource.data.get('sandbox', false) == true))
       );
       allow delete: if false;
     }
@@ -46,16 +56,20 @@ service cloud.firestore {
     // Verified lender organisations a shop can choose to share with.
     match /orgs/{orgId} {
       allow read: if signedIn();
-      allow create, update: if isAdmin() && request.resource.data.id == orgId;
+      allow create: if isAdmin() && request.resource.data.id == orgId && request.resource.data.get('sandbox', false) == isDemo();
+      // the demo admin can never relabel an organisation a real admin verified
+      allow update: if isAdmin() && request.resource.data.id == orgId && request.resource.data.get('sandbox', false) == isDemo()
+        && (!isDemo() || resource.data.get('sandbox', false) == true);
       allow delete: if false;
     }
 
     // ── passports: the owner, and verified lenders the shop shared with, read the full passport
     match /passports/{id} {
-      allow read: if signedIn() && (resource.data.ownerId == uid() || (isVerifiedLender() && covers(resource.data.consent)));
+      allow read: if signedIn() && (resource.data.ownerId == uid() || lenderSees(resource.data));
       allow create: if isShop()
         && request.resource.data.id == id
         && request.resource.data.ownerId == uid()
+        && request.resource.data.get('demo', false) == isDemo()
         && request.resource.data.consent.scope in ['all', 'selected']
         && !('decisions' in request.resource.data) && !('access' in request.resource.data);
       // After issue, only the shop's consent can change; the score and evidence are fixed.
@@ -67,8 +81,8 @@ service cloud.firestore {
       // One decision per lender organisation. The shop sees all; a lender only its own.
       match /decisions/{orgId} {
         allow read: if signedIn() && (passport(id).ownerId == uid()
-          || (isVerifiedLender() && me().orgId == orgId && covers(passport(id).consent)));
-        allow create, update: if isVerifiedLender() && me().orgId == orgId && covers(passport(id).consent)
+          || (me().get('orgId', '') == orgId && lenderSees(passport(id))));
+        allow create, update: if me().get('orgId', '') == orgId && lenderSees(passport(id))
           && request.resource.data.lenderId == uid() && request.resource.data.orgId == orgId
           && request.resource.data.status in ['approved', 'more_info', 'declined'];
         allow delete: if false;
@@ -77,7 +91,7 @@ service cloud.firestore {
       // Every full view by a lender, shown to the shop.
       match /access/{entry} {
         allow read: if signedIn() && (passport(id).ownerId == uid() || resource.data.lenderId == uid());
-        allow create: if isVerifiedLender() && covers(passport(id).consent) && request.resource.data.lenderId == uid();
+        allow create: if lenderSees(passport(id)) && request.resource.data.lenderId == uid();
         allow update, delete: if false;
       }
     }
@@ -107,9 +121,10 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // ── append-only audit log. Staff read all of it; a shop reads the entries about its own passports.
+    // ── append-only audit log. Staff read it (the demo admin only the demo's own activity);
+    // a shop reads the entries about its own passports.
     match /audit/{entryId} {
-      allow read: if isAdmin() || (signedIn() && resource.data.get('ownerId', '') == uid());
+      allow read: if (isAdmin() && (!isDemo() || resource.data.get('demo', false) == true)) || (signedIn() && resource.data.get('ownerId', '') == uid());
       allow create: if request.resource.data.id == entryId
         && (
           (signedIn() && request.resource.data.actorId == uid()

@@ -20,7 +20,10 @@ export interface User {
   statusNote?: string
   verifiedAt?: string
   createdAt: string
+  /** One of the public demo accounts (their password is on the sign-in page). */
   demo?: boolean
+  /** A lender verified by the demo admin: it can only ever see demo passports, never a real shop's. */
+  sandbox?: boolean
   /** Lenders only: what kind of lender, and its regulator's registration or licence number. */
   orgType?: LenderType
   regNo?: string
@@ -32,10 +35,10 @@ export const LENDER_TYPES: Record<LenderType, string> = {
 }
 
 /** A verified lender organisation a shop can choose to share with. */
-export interface LenderOrg { id: string; org: string; orgType?: LenderType; regulated?: boolean }
+export interface LenderOrg { id: string; org: string; orgType?: LenderType; regulated?: boolean; sandbox?: boolean }
 
 /** What the admin sees about a lender account (never a password hash). */
-export type LenderAccount = Pick<User, 'id' | 'name' | 'email' | 'org' | 'orgId' | 'status' | 'statusNote' | 'verifiedAt' | 'createdAt' | 'demo' | 'orgType' | 'regNo'>
+export type LenderAccount = Pick<User, 'id' | 'name' | 'email' | 'org' | 'orgId' | 'status' | 'statusNote' | 'verifiedAt' | 'createdAt' | 'demo' | 'orgType' | 'regNo' | 'sandbox'>
 
 // ───────────────────────── consent and access
 
@@ -67,6 +70,8 @@ export interface AuditEntry {
   passportId?: string
   targetId?: string
   detail: string
+  /** Activity in the public demo: the only part of the log the demo admin can read. */
+  demo?: boolean
 }
 
 export type DecisionStatus = 'approved' | 'more_info' | 'declined'
@@ -449,6 +454,8 @@ export interface Assessment {
   seal?: string
   /** Who the owner is and whether the business is registered, with how each fact was proven. */
   identity?: IdentitySummary
+  /** Built by a public demo account: only demo and real lenders see it, and sandbox lenders see nothing else. */
+  demo?: boolean
 }
 
 /**

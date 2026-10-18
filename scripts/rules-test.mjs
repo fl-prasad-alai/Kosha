@@ -50,8 +50,10 @@ await expect('the owner to read its passport', true, () => getDoc(doc(shop.db, '
 await expect('the owner to list its passports', true, () => getDocs(query(collection(shop.db, 'passports'), where('ownerId', '==', shop.uid))))
 await expect('a shop to read another shop\'s passport', false, () => getDoc(doc(newShop.db, 'passports', IN)))
 await expect('a verified lender to read a passport shared with all', true, () => getDoc(doc(lender.db, 'passports', IN)))
-await expect('a verified lender to list passports shared with all', true, () => getDocs(query(collection(lender.db, 'passports'), where('consent.scope', '==', 'all'))))
-await expect('a verified lender to list passports shared with its organisation', true, () => getDocs(query(collection(lender.db, 'passports'), where('consent.scope', '==', 'selected'), where('consent.lenderIds', 'array-contains', 'pune-merchants-co-op'))))
+// the demo lender is sandboxed: it lists demo passports only
+await expect('the demo lender to list demo passports shared with all', true, () => getDocs(query(collection(lender.db, 'passports'), where('consent.scope', '==', 'all'), where('demo', '==', true))))
+await expect('the demo lender to list every passport shared with all', false, () => getDocs(query(collection(lender.db, 'passports'), where('consent.scope', '==', 'all'))))
+await expect('the demo lender to list demo passports shared with its organisation', true, () => getDocs(query(collection(lender.db, 'passports'), where('consent.scope', '==', 'selected'), where('consent.lenderIds', 'array-contains', 'pune-merchants-co-op'), where('demo', '==', true))))
 await expect('a verified lender to list every passport', false, () => getDocs(collection(lender.db, 'passports')))
 await expect('a pending lender to read a shared passport', false, () => getDoc(doc(newLender.db, 'passports', IN)))
 await expect('admin to read a full passport', false, () => getDoc(doc(admin.db, 'passports', IN)))
@@ -71,7 +73,7 @@ await expect('a shop to issue a passport for someone else', false, () => setDoc(
 await expect('the owner to write a matching public record', true, () => setDoc(doc(newShop.db, 'public', NEW), { id: NEW, ownerId: newShop.uid, score: 700, band: 'B', status: 'offer', seal: 'AAAA-BBBB', redacted: true }))
 await expect('a lender not chosen to read it', false, () => getDoc(doc(lender.db, 'passports', NEW)))
 await expect('the owner to change consent', true, () => updateDoc(doc(newShop.db, 'passports', NEW), { 'consent.scope': 'all' }))
-await expect('a verified lender to read it once shared with all', true, () => getDoc(doc(lender.db, 'passports', NEW)))
+await expect("the demo lender to read a real shop's passport shared with all", false, () => getDoc(doc(lender.db, 'passports', NEW)))
 
 // decisions and access log
 const decision = { lenderId: lender.uid, orgId: 'pune-merchants-co-op', lenderName: 'Arjun', org: 'Pune', status: 'approved', note: '', at: new Date().toISOString() }
@@ -97,7 +99,8 @@ const e4 = { id: crypto.randomUUID(), at: new Date().toISOString(), type: 'login
 await expect('a visitor to log a failed sign-in', true, () => setDoc(doc(anon.db, 'audit', e4.id), e4))
 await expect('the owner to read its passport trail', true, () => getDocs(query(collection(shop.db, 'audit'), where('ownerId', '==', shop.uid), where('passportId', '==', IN))))
 await expect('a shop to read the whole log', false, () => getDocs(collection(shop.db, 'audit')))
-await expect('admin to read the whole log', true, () => getDocs(query(collection(admin.db, 'audit'), orderBy('at', 'desc'), limit(50))))
+await expect('the demo admin to read the whole log', false, () => getDocs(query(collection(admin.db, 'audit'), orderBy('at', 'desc'), limit(50))))
+await expect('the demo admin to read the demo part of the log', true, () => getDocs(query(collection(admin.db, 'audit'), where('demo', '==', true), orderBy('at', 'desc'), limit(50))))
 await expect('anyone to edit a log entry', false, () => updateDoc(doc(admin.db, 'audit', e1.id), { detail: 'changed' }))
 
 // one identity, one shop
@@ -112,9 +115,11 @@ await expect('a lender to claim a PAN', false, () => setDoc(doc(lender.db, 'iden
 // lender organisations
 await expect('a signed-in shop to list verified organisations', true, () => getDocs(collection(shop.db, 'orgs')))
 await expect('a lender to add its own organisation', false, () => setDoc(doc(newLender.db, 'orgs', 'test-bank'), { id: 'test-bank', org: 'Test Bank' }))
-await expect('admin to verify a lender', true, () => updateDoc(doc(admin.db, 'users', newLender.uid), { status: 'verified', verifiedAt: new Date().toISOString() }))
-await expect('admin to add the organisation', true, () => setDoc(doc(admin.db, 'orgs', 'test-bank'), { id: 'test-bank', org: 'Test Bank' }))
-await expect('the newly verified lender to read a passport shared with all', true, () => getDoc(doc(newLender.db, 'passports', IN)))
+await expect('the demo admin to verify a lender without sandboxing it', false, () => updateDoc(doc(admin.db, 'users', newLender.uid), { status: 'verified', verifiedAt: new Date().toISOString() }))
+await expect('the demo admin to verify a lender as a sandbox lender', true, () => updateDoc(doc(admin.db, 'users', newLender.uid), { status: 'verified', verifiedAt: new Date().toISOString(), sandbox: true }))
+await expect('the demo admin to add a sandbox organisation', true, () => setDoc(doc(admin.db, 'orgs', `test-bank-${stamp}`), { id: `test-bank-${stamp}`, org: 'Test Bank', sandbox: true }))
+await expect('the sandbox lender to read a demo passport shared with all', true, () => getDoc(doc(newLender.db, 'passports', IN)))
+await expect("the sandbox lender to read a real shop's passport", false, () => getDoc(doc(newLender.db, 'passports', NEW)))
 
 for (const c of [shop, lender, admin, anon, newLender, newShop]) await deleteApp(c.app)
 console.log(failed ? `\n${failed} FAILED` : '\nAll rules checks passed')

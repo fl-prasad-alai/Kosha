@@ -84,9 +84,11 @@ const DENIED = {
 
 // ───────────────────────── audit log (append-only; rules forbid edits and deletes)
 
-async function audit(actor: User | null, type: AuditType, e: { detail: string; org?: string; passportId?: string; targetId?: string; ownerId?: string }) {
+async function audit(actor: User | null, type: AuditType, e: { detail: string; org?: string; passportId?: string; targetId?: string; ownerId?: string; demo?: boolean }) {
+  // Demo activity is marked so the public demo admin sees only that part of the log.
+  const demo = e.demo ?? (!!actor?.demo || !!actor?.sandbox)
   const entry: AuditEntry & { ownerId?: string } = {
-    id: crypto.randomUUID(), at: new Date().toISOString(), type, actorId: actor?.id ?? null, actorName: actor?.name ?? 'Unknown', actorRole: actor?.role ?? null, ...e,
+    id: crypto.randomUUID(), at: new Date().toISOString(), type, actorId: actor?.id ?? null, actorName: actor?.name ?? 'Unknown', actorRole: actor?.role ?? null, ...e, demo,
   }
   try {
     await setDoc(doc(db, 'audit', entry.id), entry)
@@ -248,7 +250,7 @@ async function recordView(a: Assessment, lender: User) {
   if (last && Date.now() - Date.parse(last) < VIEW_GAP) return
   const e: AccessEntry = { lenderId: lender.id, org: lender.org, at: new Date().toISOString() }
   await setDoc(doc(collection(db, 'passports', a.id, 'access')), e)
-  await audit(lender, 'lender_view', { passportId: a.id, org: lender.org, ownerId: ownerOf(a), detail: `Opened the full passport of ${a.profile.shopName}` })
+  await audit(lender, 'lender_view', { passportId: a.id, org: lender.org, ownerId: ownerOf(a), demo: !!a.demo || !!lender.demo || !!lender.sandbox, detail: `Opened the full passport of ${a.profile.shopName}` })
 }
 
 /** The full passport when the viewer may see it, otherwise the redacted public record. */
@@ -309,9 +311,11 @@ export const listPassports = () => run(async (): Promise<PassportSummary[]> => {
   if (u.role === 'lender') {
     if (!can(u, 'passport:read:shared')) return []
     const org = orgOf(u)
+    // The public demo lender, and lenders verified by the demo admin, can only ever see demo passports.
+    const onlyDemo = u.demo || u.sandbox ? [where('demo', '==', true)] : []
     const [everyone, chosen] = await Promise.all([
-      getDocs(query(passports, where('consent.scope', '==', 'all'))),
-      getDocs(query(passports, where('consent.scope', '==', 'selected'), where('consent.lenderIds', 'array-contains', org))),
+      getDocs(query(passports, where('consent.scope', '==', 'all'), ...onlyDemo)),
+      getDocs(query(passports, where('consent.scope', '==', 'selected'), where('consent.lenderIds', 'array-contains', org), ...onlyDemo)),
     ])
     const seen = new Map<string, Assessment>()
     for (const d of [...everyone.docs, ...chosen.docs]) if (complete(d.data() as Assessment)) seen.set(d.id, d.data() as Assessment)
@@ -325,9 +329,10 @@ let orgs: Promise<LenderOrg[]> | null = null
 /** Verified lender organisations a shop can share with. Fetched once per page load. */
 export const listLenders = () =>
   (orgs ??= run(async () => {
-    await needUser()
+    const u = await needUser()
     const s = await getDocs(collection(db, 'orgs'))
-    return s.docs.map((d) => d.data() as LenderOrg).sort((a, b) => a.org.localeCompare(b.org))
+    // Sandbox lenders cannot open a real shop's passport, so real shops are not offered them.
+    return s.docs.map((d) => d.data() as LenderOrg).filter((o) => u.demo || !o.sandbox).sort((a, b) => a.org.localeCompare(b.org))
   }).catch((e) => { orgs = null; throw e }))
 
 /** Checks the consent a shop sent. Selected lenders must be verified organisations. */
@@ -358,6 +363,7 @@ export const buildPassport = (body: { consent: ConsentInput; [k: string]: unknow
   const a = await assess({ profile, ...docs, location, interview, idInput, claim } as never, typeof thumbnail === 'string' && thumbnail.length < 400_000 ? thumbnail : undefined)
   a.ownerId = u.id
   a.consent = consent
+  a.demo = !!u.demo
   a.seal = await sealOf({ id: a.id, score: a.score, band: a.band, status: a.offer.status, createdAt: a.createdAt })
   await setDoc(passportRef(a.id), plain(a))
   await setDoc(doc(db, 'public', a.id), plain(publicDoc(a)))
@@ -402,7 +408,7 @@ export const setConsent = (id: string, input: ConsentInput) => run(async (): Pro
 export const passportAudit = (id: string) => run(async (): Promise<AuditEntry[]> => {
   const u = await needUser()
   if (u.role === 'admin') {
-    const s = await getDocs(query(collection(db, 'audit'), where('passportId', '==', id)))
+    const s = await getDocs(query(collection(db, 'audit'), where('passportId', '==', id), ...(u.demo ? [where('demo', '==', true)] : [])))
     return s.docs.map((d) => d.data() as AuditEntry).sort((x, y) => y.at.localeCompare(x.at))
   }
   const a = await readFull(id)
@@ -426,7 +432,7 @@ export const decide = (id: string, status: DecisionStatus, rawNote: string, requ
   const d: Decision = { lenderId: u.id, orgId: orgOf(u), lenderName: u.name, org: u.org, status, note, at: new Date().toISOString(), ...(asks.length ? { requests: asks } : {}) }
   // One decision per lender organisation; a newer one from the same organisation replaces it.
   await setDoc(doc(db, 'passports', id, 'decisions', orgOf(u)), d)
-  await audit(u, 'decision', { passportId: id, org: u.org, ownerId: ownerOf(before), detail: `${status === 'approved' ? 'Approved' : status === 'more_info' ? 'Asked for documents' : 'Declined'} ${before.profile.shopName}` })
+  await audit(u, 'decision', { passportId: id, org: u.org, ownerId: ownerOf(before), demo: !!before.demo || !!u.demo || !!u.sandbox, detail: `${status === 'approved' ? 'Approved' : status === 'more_info' ? 'Asked for documents' : 'Declined'} ${before.profile.shopName}` })
   return viewFor(before, u)
 })
 
@@ -527,7 +533,7 @@ export const adminLenders = () => run(async (): Promise<LenderAccount[]> => {
   const s = await getDocs(query(collection(db, 'users'), where('role', '==', 'lender')))
   return s.docs
     .map((d) => d.data() as User)
-    .map((u) => ({ id: u.id, name: u.name, email: u.email, org: u.org, orgId: orgOf(u), status: u.status ?? 'pending', statusNote: u.statusNote, verifiedAt: u.verifiedAt, createdAt: u.createdAt, demo: u.demo, orgType: u.orgType, regNo: u.regNo }))
+    .map((u) => ({ id: u.id, name: u.name, email: u.email, org: u.org, orgId: orgOf(u), status: u.status ?? 'pending', statusNote: u.statusNote, verifiedAt: u.verifiedAt, createdAt: u.createdAt, demo: u.demo, orgType: u.orgType, regNo: u.regNo, sandbox: u.sandbox }))
     .sort((a, b) => rank[a.status] - rank[b.status] || b.createdAt.localeCompare(a.createdAt))
 })
 
@@ -539,16 +545,19 @@ export const verifyLender = (id: string, status: 'verified' | 'rejected', rawRea
   if (!u || u.role !== 'lender') throw new ApiError('No lender account with that id.', 404)
   if (u.demo) throw new ApiError('The demo lender is always verified.', 409)
   if (status === 'rejected' && reason.length < 3) throw new ApiError('Add a short reason so the lender knows why.', 400)
-  await updateDoc(doc(db, 'users', id), { status, statusNote: reason || deleteField(), verifiedAt: new Date().toISOString() })
-  if (status === 'verified') await setDoc(doc(db, 'orgs', orgOf(u)), { id: orgOf(u), org: u.org, orgType: u.orgType ?? 'other', regulated: !!u.regNo })
+  // A lender verified by the public demo admin is a sandbox lender: it can see demo passports only.
+  const sandbox = !!admin.demo
+  await updateDoc(doc(db, 'users', id), { status, statusNote: reason || deleteField(), verifiedAt: new Date().toISOString(), sandbox })
+  // (a sandboxed approval cannot relabel a real organisation of the same name; the lender stays sandboxed anyway)
+  if (status === 'verified') await setDoc(doc(db, 'orgs', orgOf(u)), { id: orgOf(u), org: u.org, orgType: u.orgType ?? 'other', regulated: !!u.regNo, sandbox }).catch((e) => { if (!sandbox) throw e })
   await audit(admin, status === 'verified' ? 'lender_verified' : 'lender_rejected', { targetId: id, org: u.org, detail: `${status === 'verified' ? 'Verified' : 'Rejected'} ${u.org} (${u.email})${reason ? `: ${reason}` : ''}` })
   orgs = null
   return adminLenders()
 })
 
 export const adminAudit = (f: { type?: AuditType | ''; q?: string } = {}) => run(async (): Promise<AuditEntry[]> => {
-  await needAdmin()
-  const s = await getDocs(query(collection(db, 'audit'), orderBy('at', 'desc'), limit(1000)))
+  const admin = await needAdmin()
+  const s = await getDocs(query(collection(db, 'audit'), ...(admin.demo ? [where('demo', '==', true)] : []), orderBy('at', 'desc'), limit(1000)))
   const q = f.q?.trim().toLowerCase()
   return s.docs
     .map((d) => d.data() as AuditEntry)

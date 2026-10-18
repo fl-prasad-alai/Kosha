@@ -88,6 +88,7 @@ const idc = (a, id) => a.checks?.find((c) => c[0] === id)?.[1]
 
 console.log('starting')
 // ─── 1. Sample shop: identity read from the specimen PAN, GST and Udyam
+let samplePassport
 {
   const p = await newPage()
   await p.goto(BASE, { waitUntil: 'networkidle2' })
@@ -103,6 +104,7 @@ console.log('starting')
   // answer the five interview questions with the sample's own answers, as the full walkthrough does
   await p.evaluate(async () => { const st = window.__kosha.getState(); await Promise.all(Object.entries(st.sampleAnswers).map(([id, text]) => st.answer(id, { text }))) })
   const a = await issue(p)
+  samplePassport = a.id
   check('Sample: passport issued with the same result as before', a.status === 'offer' && a.score === 794, `${a.id} · score ${a.score} · ${a.status}`)
   check('Sample: identity level = read from document', a.identity?.person === 'document' && a.identity?.business === 'document')
   check('Sample: identity checks pass', idc(a, 'id_person') === 'pass' && idc(a, 'id_business') === 'pass', a.checks.map((c) => `${c[0]}=${c[1]}`).join(' '))
@@ -189,7 +191,12 @@ let lenderPassport
   await p.evaluate(() => [...document.querySelectorAll('button')].find((x) => x.textContent.includes('Registered business')).click()); await sleep(800)
   const after = await p.$$eval('tbody tr', (r) => r.length)
   check('"Registered business" filter narrows the queue', after > 0 && after < before, `${before} → ${after} rows`)
-  lenderPassport = firstId
+  // the public demo lender is sandboxed: a real shop's passport opens only as its public record
+  await p.goto(`${BASE}/passport/${firstId}`, { waitUntil: 'networkidle2' }); await sleep(3000)
+  const rt = await text(p)
+  check("Demo lender cannot open a real shop's full passport", rt.includes('This is the public record') && !rt.includes('Do the sources agree?'))
+  check('Demo lender queue lists only demo passports', !t.includes(firstId), `real passport ${firstId} not in the queue`)
+  lenderPassport = samplePassport
   await p.goto(`${BASE}/passport/${lenderPassport}`, { waitUntil: 'networkidle2' }); await sleep(3000)
   await p.evaluate(() => [...document.querySelectorAll('button')].find((x) => x.textContent.includes('Ask for documents')).click()); await sleep(500)
   await p.evaluate(() => [...document.querySelectorAll('button')].find((x) => x.textContent.trim().endsWith('Latest electricity bill'))?.click()); await sleep(300)
@@ -201,19 +208,16 @@ let lenderPassport
   check('Lender sends "ask for documents" with a checklist', (await text(p)).includes('Sent.'))
   await p.goto(`${BASE}/passport/${lenderPassport}/kyc`, { waitUntil: 'networkidle2' }); await sleep(2500)
   const k = await text(p)
-  check('KYC summary renders for the lender', /KYC & credit summary/i.test(k) && /Identity and registration/i.test(k) && k.includes(PAN_MASKED))
+  check('KYC summary renders for the lender', /KYC & credit summary/i.test(k) && /Identity and registration/i.test(k) && k.includes('ABCPS****F'))
   // a GSTIN contains its owner's PAN by design (public registry data); outside it, the PAN never appears
-  check('KYC summary never shows the full PAN', !k.replaceAll(GSTIN, '').includes(PAN))
+  check('KYC summary never shows the full PAN', !k.replaceAll('27ABCPS1234F1ZX', '').includes('ABCPS1234F'))
   await p.screenshot({ path: `${out}/08-kyc.png`, fullPage: true })
 }
 
 // ─── 7. The shop sees the checklist
 {
   const p = await newPage()
-  await p.goto(`${BASE}/login`, { waitUntil: 'networkidle2' })
-  await p.type('#email', `kavita.${stamp}@shop.test`); await p.type('#password', 'password123')
-  await p.evaluate(() => document.querySelector('#email').closest('form').requestSubmit())
-  await p.waitForFunction(() => location.pathname !== '/login', { timeout: 20000 })
+  await demo(p, 'Shop owner demo')
   await p.goto(`${BASE}/passport/${lenderPassport}`, { waitUntil: 'networkidle2' }); await sleep(3000)
   const t = await text(p)
   check('Shop sees exactly what the lender asked for', t.includes('To add') && t.includes('Latest electricity bill') && t.includes('Update my passport'))
@@ -243,8 +247,21 @@ let lenderPassport
   await a.evaluate(() => [...document.querySelectorAll('button')].find((x) => x.textContent.includes('Verify organisation') && x.getBoundingClientRect().width > 0).click())
   await a.waitForFunction(() => [...document.querySelectorAll('tr')].find((x) => x.textContent.includes('Bandung'))?.textContent.includes('Verified'), { timeout: 20000 }).catch(() => {})
   await a.evaluate(() => [...document.querySelectorAll('button[role=tab]')].find((x) => x.textContent.includes('Audit log')).click()); await sleep(2000)
-  check('Duplicate-PAN shows up as an identity alert in the audit log', (await text(a)).includes('Identity alert'))
-  await a.screenshot({ path: `${out}/11-audit.png` })
+  const demoLog = await text(a)
+  check("Demo admin's audit log shows no real shop's activity", !demoLog.includes('Sunil Stores') && !demoLog.includes('Kavita Kirana'))
+  // the real admin (a private account, never on the sign-in page) sees the real shops' identity alert
+  if (process.env.KOSHA_ADMIN_EMAIL) {
+    const r = await newPage()
+    await r.goto(`${BASE}/login`, { waitUntil: 'networkidle2' })
+    await r.type('#email', process.env.KOSHA_ADMIN_EMAIL); await r.type('#password', process.env.KOSHA_ADMIN_PASSWORD)
+    await r.evaluate(() => document.querySelector('#email').closest('form').requestSubmit())
+    await r.waitForFunction(() => location.pathname !== '/login', { timeout: 20000 })
+    await r.goto(`${BASE}/admin`, { waitUntil: 'networkidle2' }); await sleep(2000)
+    await r.evaluate(() => [...document.querySelectorAll('button[role=tab]')].find((x) => x.textContent.includes('Audit log')).click()); await sleep(2500)
+    const rl = await text(r)
+    check('Real admin sees the duplicate-PAN identity alert', rl.includes('Sunil Stores') && /Identity alert/.test(rl))
+    await r.screenshot({ path: `${out}/11-audit.png` })
+  }
   const s = await newPage()
   await demo(s, 'Shop owner demo')
   await s.goto(`${BASE}/passport/KSH-IN-8BE504`, { waitUntil: 'networkidle2' }); await sleep(2500)
