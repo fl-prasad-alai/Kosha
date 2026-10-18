@@ -1,61 +1,42 @@
-// Reads a QR code from the camera or from a photo, on the device. Uses the browser's BarcodeDetector when it
-// has one, otherwise jsQR. Aadhaar's Secure QR is dense, so frames are read at full camera resolution.
+// The Aadhaar panel's two ways in: scan the QR with the camera, or upload a photo of the card.
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import jsQR from 'jsqr'
+import { decodeCanvas, decodeQrImage, nativeDetector } from '@/lib/qrDecode'
 import { Camera, ImageUp, Loader2, X } from 'lucide-react'
 
-type Detector = { detect: (src: CanvasImageSource) => Promise<{ rawValue: string }[]> }
-function nativeDetector(): Detector | null {
-  const BD = (globalThis as { BarcodeDetector?: new (o: { formats: string[] }) => Detector }).BarcodeDetector
-  try { return BD ? new BD({ formats: ['qr_code'] }) : null } catch { return null }
-}
-
-async function decodeCanvas(c: HTMLCanvasElement, det: Detector | null): Promise<string | null> {
-  if (det) {
-    try {
-      const r = await det.detect(c)
-      if (r[0]?.rawValue) return r[0].rawValue
-    } catch { /* fall back */ }
-  }
-  const ctx = c.getContext('2d', { willReadFrequently: true })!
-  const img = ctx.getImageData(0, 0, c.width, c.height)
-  return jsQR(img.data, img.width, img.height, { inversionAttempts: 'attemptBoth' })?.data ?? null
-}
-
-/** Decodes a QR code in a photo, trying a few sizes (very large photos defeat jsQR). */
-export async function decodeQrImage(file: File): Promise<string | null> {
-  const bmp = await createImageBitmap(file)
-  const det = nativeDetector()
-  for (const w of [Math.min(bmp.width, 2400), 1600, 1100, 800]) {
-    const c = document.createElement('canvas')
-    c.width = w
-    c.height = Math.round((bmp.height / bmp.width) * w)
-    c.getContext('2d')!.drawImage(bmp, 0, 0, c.width, c.height)
-    const text = await decodeCanvas(c, det)
-    if (text) return text
-  }
-  return null
-}
-
-export function QrScan({ onText, onError, busy }: { onText: (t: string) => void; onError: (m: string) => void; busy?: boolean }) {
+/**
+ * Two ways in: scan the QR with the camera, or upload a photo of the card. A photo is first searched for the QR
+ * (signed by UIDAI); if it has no readable QR, the photo itself is passed on to be read as an ID card.
+ */
+export function QrScan({ onText, onPhoto, onError, busy }: { onText: (t: string) => void; onPhoto: (f: File) => void; onError: (m: string) => void; busy?: boolean }) {
   const [open, setOpen] = useState(false)
+  const [looking, setLooking] = useState(false)
   const file = useRef<HTMLInputElement>(null)
   return (
-    <div className="flex flex-wrap gap-2">
-      <button type="button" disabled={busy} onClick={() => setOpen(true)} className="inline-flex min-h-11 items-center gap-2 rounded-full bg-gold px-4 text-sm font-semibold text-[#1b1203] disabled:opacity-50">
-        {busy ? <Loader2 className="size-4 animate-spin" /> : <Camera className="size-4" />} Scan with camera
+    <div className="grid gap-2 sm:grid-cols-2">
+      <button type="button" disabled={busy || looking} onClick={() => setOpen(true)} className="flex min-h-14 items-center gap-3 rounded-2xl bg-gold px-4 text-left text-[#1b1203] disabled:opacity-50">
+        {busy ? <Loader2 className="size-5 shrink-0 animate-spin" /> : <Camera className="size-5 shrink-0" />}
+        <span><span className="block text-sm font-semibold">Scan the QR</span><span className="block text-xs opacity-80">With the camera · Govt-signed</span></span>
       </button>
-      <button type="button" disabled={busy} onClick={() => file.current?.click()} className="glass inline-flex min-h-11 items-center gap-2 rounded-full px-4 text-sm disabled:opacity-50">
-        <ImageUp className="size-4" /> Upload a photo
+      <button type="button" disabled={busy || looking} onClick={() => file.current?.click()} className="glass flex min-h-14 items-center gap-3 rounded-2xl px-4 text-left disabled:opacity-50">
+        {looking ? <Loader2 className="size-5 shrink-0 animate-spin" /> : <ImageUp className="size-5 shrink-0" />}
+        <span><span className="block text-sm font-semibold">Upload a photo of the card</span><span className="block text-xs text-ink-3">Front, back or e-Aadhaar screenshot</span></span>
       </button>
       <input ref={file} type="file" accept="image/*" className="hidden" onChange={async (e) => {
         const f = e.target.files?.[0]
         e.target.value = ''
         if (!f) return
-        const t = await decodeQrImage(f).catch(() => null)
-        if (t) onText(t)
-        else onError('No QR code found in that photo. Take it straight on, in good light, with the whole QR in view.')
+        setLooking(true)
+        try {
+          // the QR beats the printed text: it is signed by UIDAI
+          const t = await decodeQrImage(f).catch(() => null)
+          if (t && /^\d{100,}$/.test(t.trim())) onText(t)
+          else onPhoto(f)
+        } catch {
+          onError('Kosha could not open that photo. Try a JPG or PNG.')
+        } finally {
+          setLooking(false)
+        }
       }} />
       {open && <CameraModal onClose={() => setOpen(false)} onText={(t) => { setOpen(false); onText(t) }} onError={(m) => { setOpen(false); onError(m) }} />}
     </div>

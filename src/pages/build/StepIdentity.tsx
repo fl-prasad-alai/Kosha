@@ -25,6 +25,13 @@ export function StepIdentity() {
   const idDoc = s.docs.identity
   const bizDoc = s.docs.business
   const india = profile.country === 'IN'
+  // an Aadhaar photo is kept apart from the PAN / ID cards, though Gemini reads them together
+  const isAadhaarFile = (f: File) => f.name.startsWith('aadhaar-')
+  const aadhaarFiles = idDoc.files.filter(isAadhaarFile)
+  const cardFiles = idDoc.files.filter((f) => !isAadhaarFile(f))
+  const firstCard = idDoc.files.findIndex((f) => !isAadhaarFile(f))
+  const aadhaarCard = idDoc.result?.documents.find((d) => d.kind === 'aadhaar')
+  const cardDocs = (idDoc.result?.documents ?? []).filter((d) => d.kind !== 'aadhaar')
 
   // The same rules the passport uses, run live so the owner sees each check as she goes.
   const live = useMemo(
@@ -98,10 +105,26 @@ export function StepIdentity() {
               </motion.div>
             ) : (
               <>
-                <QrScan busy={qr.status === 'reading'} onText={(t) => void s.scanQr(t)} onError={(m) => useKosha.setState({ qr: { status: 'error', error: m } })} />
+                <QrScan busy={qr.status === 'reading'} onText={(t) => void s.scanQr(t)} onPhoto={(f) => s.addAadhaarPhoto(f)} onError={(m) => useKosha.setState({ qr: { status: 'error', error: m } })} />
                 {qr.status === 'reading' && <Reading className="mt-3" text="Checking UIDAI's signature…" />}
                 {qr.status === 'error' && <div className="mt-3"><ErrorNote error={qr.error!} /></div>}
-                <p className="mt-3 text-xs text-ink-3">No Aadhaar QR? Photograph a PAN card or any ID on the right instead.</p>
+                {aadhaarFiles.length > 0 && idDoc.status === 'reading' && <Reading className="mt-3" text="No readable QR in the photo, so Gemini is reading the card…" />}
+                {aadhaarFiles.length > 0 && idDoc.status === 'error' && <div className="mt-3"><ErrorNote error={idDoc.error!} onRetry={() => s.read('identity')} /></div>}
+                {aadhaarCard && (
+                  <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="mt-3 rounded-2xl border border-line p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="font-semibold">{aadhaarCard.nameLatin || aadhaarCard.name}</span>
+                      {aadhaarCard.tamperSigns.length ? <span className="text-xs text-vermilion">Signs of editing</span> : aadhaarCard.specimen ? <span className="text-xs text-amber-k">Specimen{sampleId ? ' · sample shop' : ''}</span> : <ProofBadge level="document" />}
+                    </div>
+                    <dl className="mt-2 grid grid-cols-2 gap-2 text-sm">
+                      <div><dt className="text-ink-3">Aadhaar</dt><dd className="font-mono">•••• •••• {aadhaarCard.number.slice(-4) || '····'}</dd></div>
+                      <div><dt className="text-ink-3">Born</dt><dd>{aadhaarCard.dob || '—'}</dd></div>
+                    </dl>
+                    <p className="mt-2 text-xs text-ink-3">Read from the card photo; only the last 4 digits are kept. Scan the QR above to make it Govt-signed.</p>
+                    <button className="mt-1 text-sm text-ink-2 underline-offset-4 hover:text-ink hover:underline" onClick={() => { s.setFiles('identity', cardFiles); if (cardFiles.length) void s.read('identity') }}>Remove</button>
+                  </motion.div>
+                )}
+                {!aadhaarCard && <p className="mt-3 text-xs text-ink-3">The QR is the big square on the card or e-Aadhaar. No Aadhaar at all? Photograph a PAN card or any ID instead.</p>}
               </>
             )}
           </Panel>
@@ -116,16 +139,16 @@ export function StepIdentity() {
                 <p className="text-sm text-ink-2">Gemini reads the number, name and date of birth, and looks for signs of editing.</p>
               </div>
             </div>
-            <div className="flex items-center gap-3"><MetaLine meta={idDoc.meta} />{idDoc.files.length > 0 && <button className="text-sm text-ink-3 hover:text-ink" onClick={() => s.setFiles('identity', [])}>Replace</button>}</div>
+            <div className="flex items-center gap-3"><MetaLine meta={idDoc.meta} />{cardFiles.length > 0 && <button className="text-sm text-ink-3 hover:text-ink" onClick={() => { s.setFiles('identity', aadhaarFiles); if (aadhaarFiles.length) void s.read('identity') }}>Replace</button>}</div>
           </div>
-          {idDoc.files.length === 0 ? (
-            <Dropzone files={idDoc.files} urls={idDoc.urls} max={3} label={india ? 'Add the PAN card' : 'Add an ID card'} hint="Front side, flat, in good light. You can add up to three IDs." onChange={(f) => { s.setFiles('identity', f); void s.read('identity') }} />
+          {cardFiles.length === 0 ? (
+            <Dropzone files={cardFiles} urls={[]} max={3} label={india ? 'Add the PAN card' : 'Add an ID card'} hint="Front side, flat, in good light. You can add up to three IDs." onChange={(f) => { s.setFiles('identity', [...aadhaarFiles, ...f]); void s.read('identity') }} />
           ) : (
             <div className="space-y-3">
-              <DocImage url={idDoc.urls[0]} type={idDoc.files[0].type} marks={(idDoc.result?.documents ?? []).filter((d) => d.file === 0).flatMap((d, k) => [{ id: `n${k}`, box: d.numberBox, tone: 'gold' as const }, { id: `m${k}`, box: d.nameBox, tone: 'jade' as const }])} scanning={idDoc.status === 'reading'} className="max-h-72 overflow-hidden" />
+              <DocImage url={idDoc.urls[firstCard]} type={idDoc.files[firstCard].type} marks={(idDoc.result?.documents ?? []).filter((d) => d.file === firstCard).flatMap((d, k) => [{ id: `n${k}`, box: d.numberBox, tone: 'gold' as const }, { id: `m${k}`, box: d.nameBox, tone: 'jade' as const }])} scanning={idDoc.status === 'reading'} className="max-h-72 overflow-hidden" />
               {idDoc.status === 'reading' && <Reading text="Gemini is reading the card…" />}
               {idDoc.status === 'error' && <ErrorNote error={idDoc.error!} onRetry={() => s.read('identity')} />}
-              {idDoc.result?.documents.map((d: IdentityDoc, k) => (
+              {cardDocs.map((d: IdentityDoc, k) => (
                 <div key={k} className="rounded-xl border border-line p-3 text-sm">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <b>{ID_NAME[d.kind]}</b>

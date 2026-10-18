@@ -141,8 +141,14 @@ export function buildIdentity(x: IdentityInputs): { summary: IdentitySummary; ch
     person = max(person, 'document')
     names.push({ source: ID_LABEL[d.kind], name: d.nameLatin || d.name })
     refs.push(idRef(d, ID_LABEL[d.kind]))
-    // other ID cards: show the number masked to its last 4 characters
-    if (d.kind !== 'pan' && d.number) facts.push({ id: `id_${d.kind}`, label: ID_LABEL[d.kind], value: d.number.replace(/[^A-Z0-9]/gi, '').replace(/.(?=.{4})/g, '•'), proof: 'document', source: `Read from the ${ID_LABEL[d.kind]}`, status: 'pass' })
+    if (d.kind === 'aadhaar') {
+      // a photo of the card: only its last 4 digits are ever kept
+      if (qr?.last4 && d.number && qr.last4 !== d.number.slice(-4)) { st.push('fail'); notes.push('The Aadhaar photo and the scanned QR belong to different cards.') }
+      if (!qr) facts.push({ id: 'aadhaar', label: 'Aadhaar', value: `•••• •••• ${d.number.slice(-4) || '····'}`, proof: 'document', source: 'Read from the Aadhaar card photo', status: 'pass' })
+    } else if (d.kind !== 'pan' && d.number) {
+      // other ID cards: show the number masked to its last 4 characters
+      facts.push({ id: `id_${d.kind}`, label: ID_LABEL[d.kind], value: d.number.replace(/[^A-Z0-9]/gi, '').replace(/.(?=.{4})/g, '•'), proof: 'document', source: `Read from the ${ID_LABEL[d.kind]}`, status: 'pass' })
+    }
   }
 
   // PAN: typed or read from the card
@@ -303,7 +309,7 @@ export function buildIdentity(x: IdentityInputs): { summary: IdentitySummary; ch
       business,
       facts,
       panMasked: validPan(pan) ? maskPan(pan) : undefined,
-      aadhaarLast4: qr?.last4 || undefined,
+      aadhaarLast4: qr?.last4 || docs.find((d) => d.kind === 'aadhaar' && usable(d))?.number.slice(-4) || undefined,
       gstin: validGstin(gstin) ? gstin : undefined,
       udyam: validUdyam(udyam) ? udyam : undefined,
       claim: x.claim ?? 'none',

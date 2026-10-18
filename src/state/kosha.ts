@@ -54,6 +54,8 @@ interface KoshaState {
   setIdInput: (p: Partial<IdentityInput>) => void
   /** Reads an Aadhaar Secure QR (the decoded digits) and checks UIDAI's signature, all in the browser. */
   scanQr: (text: string) => Promise<void>
+  /** A photo of the Aadhaar card with no readable QR: Gemini reads the card instead (last 4 digits only). */
+  addAadhaarPhoto: (file: File) => void
   setFiles: (kind: DocKind, files: File[]) => void
   removeFile: (kind: DocKind, index: number) => void
   read: (kind: DocKind) => Promise<void>
@@ -107,6 +109,13 @@ export const useKosha = create<KoshaState>()(persist((set, get) => ({
     } catch (e) {
       set({ qr: { status: 'error', error: (e as Error).message } })
     }
+  },
+
+  addAadhaarPhoto: (file) => {
+    const named = new File([file], `aadhaar-${file.name}`, { type: file.type })
+    set({ qr: { status: 'idle' } })
+    get().setFiles('identity', [...get().docs.identity.files.filter((f) => !f.name.startsWith('aadhaar-')), named])
+    void get().read('identity')
   },
 
   setConsent: (consent) => set({ consent }),
