@@ -1,222 +1,262 @@
 1
-00:00:01,145 --> 00:00:03,629
-Every corner shop in Asia keeps a ledger.
+00:00:00,900 --> 00:00:06,147
+Asia runs on corner shops: 12 million kiranas in India, 1.
 
 2
-00:00:03,679 --> 00:00:05,529
-Almost no lender can read it.
+00:00:06,197 --> 00:00:10,000
+3 million sari-sari stores, nearly 4 million warungs.
 
 3
-00:00:06,980 --> 00:00:08,086
-Meet Sunita Sharma.
+00:00:10,050 --> 00:00:13,371
+Almost none can get a bank loan.
 
 4
-00:00:08,136 --> 00:00:12,324
-She has run a kirana in Kothrud, Pune, for eleven years.
+00:00:14,321 --> 00:00:15,486
+Meet Sunita Sharma.
 
 5
-00:00:12,374 --> 00:00:15,793
-Three weeks before Diwali, she needs ₹80,000 for stock.
+00:00:15,536 --> 00:00:18,321
+Eleven years running a kirana in Pune.
 
 6
-00:00:15,843 --> 00:00:17,334
-The bank says no.
+00:00:18,371 --> 00:00:21,966
+Three weeks before Diwali, she needs ₹80,000 for stock.
 
 7
-00:00:17,384 --> 00:00:19,261
-No records, no credit score.
+00:00:22,016 --> 00:00:25,206
+No credit score, so the bank says no,
 
 8
-00:00:19,311 --> 00:00:21,573
-So she turns to the moneylender.
+00:00:25,256 --> 00:00:28,851
+and she borrows at up to 5% a month.
 
 9
-00:00:22,623 --> 00:00:24,477
-But Sunita does have records.
+00:00:29,701 --> 00:00:34,228
+India's small businesses face a credit gap of ₹30 lakh crore.
 
 10
-00:00:24,527 --> 00:00:27,523
-Every sale, every supplier, every rupee of credit,
+00:00:34,278 --> 00:00:38,804
+Over 9,000 NBFCs and nearly 1,500 co-operative banks want these customers.
 
 11
-00:00:27,573 --> 00:00:29,047
-handwritten in her khata.
+00:00:38,854 --> 00:00:42,132
+But checking one shop means a field visit,
 
 12
-00:00:29,097 --> 00:00:32,855
-From kiranas in India to sari-sari stores in the Philippines,
+00:00:42,182 --> 00:00:44,213
+a ledger they can't read,
 
 13
-00:00:32,905 --> 00:00:36,282
-millions of shops are invisible for the same reason.
+00:00:44,263 --> 00:00:47,125
+and documents that are easy to forge.
 
 14
-00:00:36,332 --> 00:00:38,186
-Checking them takes lenders days,
-
-15
-00:00:38,236 --> 00:00:40,852
-and one edited document can fool them.
-
-16
-00:00:43,302 --> 00:00:44,385
+00:00:49,075 --> 00:00:50,158
 This is Kosha.
 
-17
-00:00:44,435 --> 00:00:46,650
-In the Arthashastra, kosha means treasury.
+15
+00:00:50,208 --> 00:00:53,181
+It turns the records a shop already keeps
 
-18
-00:00:46,700 --> 00:00:49,670
-Kosha turns the records a shop already keeps
-
-19
-00:00:49,720 --> 00:00:52,690
+16
+00:00:53,231 --> 00:00:56,203
 into a credit passport any lender can trust.
 
-20
-00:00:54,840 --> 00:00:57,373
-Sunita photographs three pages of her khata.
+17
+00:00:57,853 --> 00:00:59,583
+Sunita photographs her khata.
 
-21
-00:00:57,423 --> 00:01:00,325
+18
+00:00:59,633 --> 00:01:03,142
 Gemini reads every handwritten Hindi line, translates it,
 
+19
+00:01:03,192 --> 00:01:06,701
+and sorts it into sales, stock and credit.
+
+20
+00:01:07,351 --> 00:01:11,992
+Then Kosha checks the evidence: supplier bills that match to the rupee,
+
+21
+00:01:12,042 --> 00:01:14,337
+over ₹8,000 a day on UPI,
+
 22
-00:01:00,375 --> 00:01:03,277
-and sorts it into sales, stock and credit,
+00:01:14,387 --> 00:01:16,682
+and electricity bills paid on time.
 
 23
-00:01:03,327 --> 00:01:05,492
-with a box around every line.
+00:01:17,332 --> 00:01:18,809
+Gemini maps the neighbourhood,
 
 24
-00:01:06,642 --> 00:01:08,406
-Then Kosha checks her story.
+00:01:18,859 --> 00:01:22,627
+and five questions in Hindi are checked against her documents.
 
 25
-00:01:08,456 --> 00:01:11,672
-Her wholesaler's bills match the ledger, to the rupee.
+00:01:23,577 --> 00:01:27,819
+Two minutes later: a score of 794, an ₹80,000 offer,
 
 26
-00:01:11,722 --> 00:01:13,849
-UPI shows over ₹8,000 a day.
+00:01:27,869 --> 00:01:29,965
+and repayments that follow Diwali.
 
 27
-00:01:13,899 --> 00:01:17,114
-And months of electricity bills, all paid on time,
+00:01:30,015 --> 00:01:34,687
+Every reason links to its evidence, explained to her in Hindi.
 
 28
-00:01:17,164 --> 00:01:18,929
-prove the shop is real.
-
-29
-00:01:19,979 --> 00:01:21,668
-Gemini, grounded on Google data,
-
-30
-00:01:21,718 --> 00:01:25,148
-maps the colleges and bus stops that bring her customers.
-
-31
-00:01:25,198 --> 00:01:27,583
-Then she answers five questions in Hindi,
-
-32
-00:01:27,633 --> 00:01:30,367
-and every answer is checked against her documents.
-
-33
-00:01:31,517 --> 00:01:34,748
-Two minutes later, her credit passport is ready.
-
-34
-00:01:34,798 --> 00:01:38,029
-A score of 794, and an ₹80,000 offer,
-
-35
-00:01:38,079 --> 00:01:42,950
-with repayments that rise after Diwali and ease in the lean months.
-
-36
-00:01:43,000 --> 00:01:45,411
-Every reason links to its source.
-
-37
-00:01:45,461 --> 00:01:48,692
-And Kosha explains it to her, in Hindi.
-
-38
-00:01:49,542 --> 00:01:50,592
+00:01:35,527 --> 00:01:36,787
 नमस्ते सुनीता जी।
 Namaste, Sunita ji.
 
-39
-00:01:51,282 --> 00:01:53,102
+29
+00:01:37,257 --> 00:01:39,587
 आपके अच्छे रिकॉर्ड्स के आधार पर,
 Based on your good records,
 
-40
-00:01:53,492 --> 00:01:56,882
+30
+00:01:39,737 --> 00:01:43,207
 आपकी दुकान अस्सी हज़ार रुपये तक के ऋण के लिए योग्य है।
 your shop qualifies for a loan of up to ₹80,000.
 
+31
+00:01:44,617 --> 00:01:47,009
+Sunita chooses which lenders see it,
+
+32
+00:01:47,059 --> 00:01:51,079
+and shares a QR code anyone can scan to verify.
+
+33
+00:01:51,129 --> 00:01:52,707
+At her co-operative bank,
+
+34
+00:01:52,757 --> 00:01:55,964
+Arjun checks the evidence and approves the loan.
+
+35
+00:01:57,308 --> 00:02:00,992
+In Quezon City, a payment screenshot hides an extra ₱48,000.
+
+36
+00:02:01,042 --> 00:02:04,727
+Gemini spots the different font, the balance doesn't add up,
+
+37
+00:02:04,777 --> 00:02:06,595
+and the offer is held.
+
+38
+00:02:07,745 --> 00:02:09,529
+And trust is built in.
+
+39
+00:02:09,579 --> 00:02:12,464
+Sunita sees every lender who opens her passport.
+
+40
+00:02:12,514 --> 00:02:15,766
+A new lender sees nothing until Kosha verifies them,
+
 41
-00:01:58,592 --> 00:02:00,959
-Now meet Nena, in Quezon City.
+00:02:15,816 --> 00:02:18,700
+and every action lands in an audit log.
 
 42
-00:02:01,009 --> 00:02:04,586
-One of her payment screenshots hides an extra ₱48,000.
+00:02:18,750 --> 00:02:22,369
+Anyone who scans the QR sees only the public record,
 
 43
-00:02:04,636 --> 00:02:07,407
-Gemini spots digits in a different font,
+00:02:22,419 --> 00:02:25,671
+and its seal shows if a printout was changed.
 
 44
-00:02:07,457 --> 00:02:10,227
-and the next balance doesn't add up.
+00:02:26,821 --> 00:02:30,851
+In numbers: 46 handwritten lines read in seconds.
 
 45
-00:02:10,277 --> 00:02:12,242
-No offer, until it's checked.
+00:02:30,901 --> 00:02:33,911
+4 of 4 supplier bills matched.
 
 46
-00:02:13,492 --> 00:02:16,800
-Shops get fair credit, and a history they own.
+00:02:33,961 --> 00:02:36,461
+12 cross-checks across 5 sources.
 
 47
-00:02:16,850 --> 00:02:20,159
-Lenders reach customers they could never afford to check,
+00:02:36,511 --> 00:02:40,032
+About ten Gemini calls, a few cents,
 
 48
-00:02:20,209 --> 00:02:23,144
-with less fraud, and decisions they can explain.
+00:02:40,082 --> 00:02:44,112
+and under two minutes from photos to passport.
 
 49
-00:02:23,194 --> 00:02:24,637
-Wholesalers sell more stock.
+00:02:45,462 --> 00:02:47,421
+And Sunita is one of millions.
 
 50
-00:02:24,687 --> 00:02:26,129
-It's free for shops.
+00:02:47,471 --> 00:02:50,770
+Rafiq, a tailor in Lucknow, earns most in wedding season,
 
 51
-00:02:26,179 --> 00:02:27,995
-Lenders pay per verified passport.
+00:02:50,820 --> 00:02:54,453
+so his repayments rise in winter and ease in the monsoon.
 
 52
-00:02:29,245 --> 00:02:32,343
-Built on Gemini, Vertex AI and Cloud Run.
+00:02:54,503 --> 00:02:57,802
+Murugan sells 300 cups of chai a day in Chennai,
 
 53
-00:02:32,393 --> 00:02:36,671
-Gemini reads the records, and clear, fixed rules make the decision.
+00:02:57,852 --> 00:03:01,485
+all on UPI, and those small payments become a credit history.
 
 54
-00:02:36,721 --> 00:02:39,818
-Every corner shop has a treasury of trust.
+00:03:01,535 --> 00:03:04,834
+In Bandung, Ibu Sari keeps her warung's ledger in Bahasa,
 
 55
-00:02:39,868 --> 00:02:42,179
+00:03:04,884 --> 00:03:08,183
+and a digital bank verifies her passport without a visit.
+
+56
+00:03:09,233 --> 00:03:13,550
+Any lender can use it: co-operative banks, NBFCs, digital banks, wholesalers.
+
+57
+00:03:13,600 --> 00:03:17,520
+Shops borrow at bank rates instead of 5% a month.
+
+58
+00:03:17,570 --> 00:03:19,902
+Lenders review in minutes, not days.
+
+59
+00:03:19,952 --> 00:03:23,078
+Free for shops; lenders pay per verified passport.
+
+60
+00:03:24,328 --> 00:03:26,941
+Try it yourself, live, at kosha-ai.web.app.
+
+61
+00:03:26,991 --> 00:03:30,936
+Pick a sample shop and watch Gemini read it,
+
+62
+00:03:30,986 --> 00:03:34,931
+or sign in as a lender or an admin.
+
+63
+00:03:36,381 --> 00:03:39,797
+Built on Gemini and Firebase, on Google Cloud.
+
+64
+00:03:39,847 --> 00:03:43,262
+Every corner shop has a treasury of trust.
+
+65
+00:03:43,312 --> 00:03:45,861
 Kosha lets the world see it.

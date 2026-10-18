@@ -234,7 +234,11 @@ async function viewFor(a: Assessment, user: User): Promise<Assessment> {
 
 // Re-opening the same passport within a few minutes (a refresh, a second tab) counts as one view.
 const VIEW_GAP = 5 * 60 * 1000
+const viewedNow = new Map<string, number>()
 async function recordView(a: Assessment, lender: User) {
+  // the page can ask twice at once; count that as one view
+  if (Date.now() - (viewedNow.get(a.id) ?? 0) < VIEW_GAP) return
+  viewedNow.set(a.id, Date.now())
   const mine = await getDocs(query(collection(db, 'passports', a.id, 'access'), where('lenderId', '==', lender.id)))
   const last = mine.docs.map((d) => (d.data() as AccessEntry).at).sort().pop()
   if (last && Date.now() - Date.parse(last) < VIEW_GAP) return
