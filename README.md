@@ -8,7 +8,7 @@
 
 <a href="docs/media/kosha-demo.mp4"><img src="docs/readme/kosha-demo-preview.gif" alt="Kosha demo preview: Sunita's kirana, Gemini reading a handwritten Hindi ledger, the credit passport, a caught fraud and the closing line" width="720"></a>
 
-<sub>2:45 narrated walkthrough · <a href="docs/media/kosha-demo.mp4"><b>Watch the full video (1080p)</b></a> · <a href="docs/media/kosha-demo.srt">Subtitles</a></sub>
+<sub>3:48 narrated walkthrough · <a href="docs/media/kosha-demo.mp4"><b>Watch the full video (1080p)</b></a> · <a href="docs/media/kosha-demo.srt">Subtitles</a></sub>
 
 </div>
 
